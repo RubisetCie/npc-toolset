@@ -8,7 +8,7 @@
 -- Base
 -- --------------
 
-TOOL.Category = "Poser"
+TOOL.Category = "NPC Control"
 TOOL.Name = "#Tool.npc_scene.name"
 TOOL.Command = nil
 TOOL.ConfigName = ""
