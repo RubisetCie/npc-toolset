@@ -3,10 +3,10 @@ local D_FR = 2
 local D_LI = 3
 local D_NU = 4
 
-CreateClientConVar("npctool_relman_enabled",1,true,true)
-local cvOnMapSpawn = CreateClientConVar("npctool_relman_mapspawn","",true)
-local cvSel = CreateClientConVar("npctool_relman_select","")
-CreateClientConVar("npctool_relman_revert",1)
+CreateClientConVar("npc_relman_enabled",1,true,true)
+local cvOnMapSpawn = CreateClientConVar("npc_relman_mapspawn","",true)
+local cvSel = CreateClientConVar("npc_relman_select","")
+CreateClientConVar("npc_relman_revert",1)
 
 local tRelationships = {}
 local UpdateMenu
@@ -16,7 +16,7 @@ local function AddRelationship(src,tgt,disp)
 	tgt = string.lower(tgt)
 	tRelationships[src] = tRelationships[src] || {}
 	tRelationships[src][tgt] = disp
-	net.Start("npctool_relman_add")
+	net.Start("npc_relman_add")
 		net.WriteString(src)
 		net.WriteString(tgt)
 		net.WriteUInt(disp,3)
@@ -24,7 +24,7 @@ local function AddRelationship(src,tgt,disp)
 end
 local function RemoveRelationship(src,tgt)
 	if(tRelationships[src]) then tRelationships[src][tgt] = nil end
-	net.Start("npctool_relman_rem")
+	net.Start("npc_relman_rem")
 		net.WriteString(src)
 		net.WriteString(tgt)
 	net.SendToServer()
@@ -37,18 +37,18 @@ local function GetSelected()
 	return vals[1],vals[2]
 end
 
-cvars.AddChangeCallback("npctool_relman_enabled",function(cv,prev,new)
-	net.Start("npctool_relman_en")
+cvars.AddChangeCallback("npc_relman_enabled",function(cv,prev,new)
+	net.Start("npc_relman_en")
 		net.WriteUInt(tonumber(new) != 0 && 1 || 0,1)
 	net.SendToServer()
 end)
 
-concommand.Add("npctool_relman_add",function(pl,cmd,args)
+concommand.Add("npc_relman_add",function(pl,cmd,args)
 	local src,tgt,disp = unpack(args)
 	disp = disp && tonumber(disp)
 	if(src && tgt && disp) then
 		AddRelationship(src,tgt,disp)
-		if(GetConVarNumber("npctool_relman_revert") != 0 && tgt != "player") then
+		if(GetConVarNumber("npc_relman_revert") != 0 && tgt != "player") then
 			AddRelationship(tgt,src,disp)
 		end
 		UpdateMenu()
@@ -140,7 +140,7 @@ concommand.Add("npctool_relman_add",function(pl,cmd,args)
 	l:SizeToContents()
 
 	local pCb = vgui.Create("DCheckBox",p)
-	pCb:SetConVar("npctool_relman_revert")
+	pCb:SetConVar("npc_relman_revert")
 	pCb:SetText("Revert")
 	pCb:SetPos(80,110)
 
@@ -151,7 +151,7 @@ concommand.Add("npctool_relman_add",function(pl,cmd,args)
 	b.DoClick = function(b)
 		p:Close()
 		if(source && target && disp) then
-			RunConsoleCommand("npctool_relman_add",source,target,disp)
+			RunConsoleCommand("npc_relman_add",source,target,disp)
 		end
 	end
 
@@ -164,16 +164,16 @@ concommand.Add("npctool_relman_add",function(pl,cmd,args)
 	end
 end)
 
-concommand.Add("npctool_relman_remove",function(pl,cmd,args)
+concommand.Add("npc_relman_remove",function(pl,cmd,args)
 	local src,tgt = GetSelected()
 	if(!src) then return end
 	RemoveRelationship(src,tgt)
 	UpdateMenu()
 end)
 
-concommand.Add("npctool_relman_clear",function(pl,cmd,args)
+concommand.Add("npc_relman_clear",function(pl,cmd,args)
 	tRelationships = {}
-	net.Start("npctool_relman_clr")
+	net.Start("npc_relman_clr")
 	net.SendToServer()
 	UpdateMenu()
 end)
@@ -220,7 +220,7 @@ local function LoadPreset(val)
 	local content = file.Read("npcrelationships/" .. val .. ".txt","DATA")
 	if(!content) then return false end
 	tRelationships = util.JSONToTable(content)
-	net.Start("npctool_relman_up")
+	net.Start("npc_relman_up")
 		net.WriteUInt(table.Count(tRelationships),12)
 		for src,rels in pairs(tRelationships) do
 			net.WriteString(src)
@@ -260,7 +260,7 @@ UpdateMenu = function()
 	end
 	if(imap) then pCBoxMap:ChooseOptionID(imap) end
 	pCBoxMap.OnSelect = function(pCBoxMap,idx,val,data)
-		RunConsoleCommand("npctool_relman_mapspawn",val)
+		RunConsoleCommand("npc_relman_mapspawn",val)
 	end
 	pCBoxMap:SetPos(l:GetWide() +5)
 	pCBoxMap:SetWide(150)
@@ -312,7 +312,7 @@ UpdateMenu = function()
 			local name = language.GetPhrase("#" .. tgt)
 			if(name[1] == "#") then name = tgt end
 			str = str .. " '" .. name .. "'"
-			options[str] = {npctool_relman_select = (src .. ":" .. tgt)}
+			options[str] = {npc_relman_select = (src .. ":" .. tgt)}
 		end
 	end
 
@@ -337,15 +337,15 @@ UpdateMenu = function()
 	end
 	pnl:AddItem(rels)
 
-	pnl:CheckBox("Active","npctool_relman_enabled")
-	pnl:Button("Add Relationship","npctool_relman_add")
-	pnl:Button("Remove Relationship","npctool_relman_remove")
-	pnl:Button("Clear Relationships","npctool_relman_clear")
+	pnl:CheckBox("Active","npc_relman_enabled")
+	pnl:Button("Add Relationship","npc_relman_add")
+	pnl:Button("Remove Relationship","npc_relman_remove")
+	pnl:Button("Clear Relationships","npc_relman_clear")
 end
-hook.Add("PopulateToolMenu","NPCTools_rels_initmenu",function()
+hook.Add("PopulateToolMenu","npctools_rels_initmenu",function()
 	spawnmenu.AddToolMenuOption("Utilities","NPC Tools","NPC Relationships","NPC Relationships","","",UpdateMenu)
 end)
-hook.Add("InitPostEntity","NPCTools_rels_initmap",function()
+hook.Add("InitPostEntity","npctools_rels_initmap",function()
 	local mapSet = cvOnMapSpawn:GetString()
-	if(LoadPreset(mapSet)) then RunConsoleCommand("npctool_relman_enabled",1) end
+	if(LoadPreset(mapSet)) then RunConsoleCommand("npc_relman_enabled",1) end
 end)

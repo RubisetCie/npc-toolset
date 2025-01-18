@@ -2,11 +2,11 @@ AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("shared.lua")
 include('shared.lua')
 
-numpad.Register("npctool_spawner_turnon",function(pl,ent,pID)
+numpad.Register("npc_spawner_turnon",function(pl,ent,pID)
 	if(!ent:IsValid()) then return end
 	ent:SetEnabled(true)
 end)
-numpad.Register("npctool_spawner_turnoff",function(pl,ent,pID)
+numpad.Register("npc_spawner_turnoff",function(pl,ent,pID)
 	if(!ent:IsValid()) then return end
 	ent:SetEnabled(false)
 end)
@@ -35,8 +35,8 @@ function ENT:Initialize()
 	self:SetNotSolid(true)
 	self:DrawShadow(false)
 
-	numpad.OnDown(self.entOwner,self:GetKeyTurnOn(),"npctool_spawner_turnon",self)
-	numpad.OnDown(self.entOwner,self:GetKeyTurnOff(),"npctool_spawner_turnoff",self)
+	numpad.OnDown(self.entOwner,self:GetKeyTurnOn(),"npc_spawner_turnon",self)
+	numpad.OnDown(self.entOwner,self:GetKeyTurnOff(),"npc_spawner_turnoff",self)
 
 	self:SetEnabled(false)
 	self.m_nextSpawn = CurTime() +self:GetSpawnDelay()

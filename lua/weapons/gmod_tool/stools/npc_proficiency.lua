@@ -1,5 +1,5 @@
 TOOL.Category = "NPC Control"
-TOOL.Name = "#tool.npctool_proficiency.name"
+TOOL.Name = "#tool.npc_proficiency.name"
 TOOL.Command = nil
 TOOL.ConfigName = ""
 
@@ -17,9 +17,9 @@ if(CLIENT) then
 		return left
 	end
 	TOOL.ClientConVar["value"] = WEAPON_PROFICIENCY_AVERAGE
-	language.Add("tool.npctool_proficiency.name","NPC Proficiency")
-	language.Add("tool.npctool_proficiency.desc","Change a NPC's weapon proficiency.")
-	language.Add("tool.npctool_proficiency.0","Left-Click on a NPC to change his proficiency, Right-Click to change the proficiency of all active NPCs of this class.")
+	language.Add("tool.npc_proficiency.name","NPC Proficiency")
+	language.Add("tool.npc_proficiency.desc","Change a NPC's weapon proficiency.")
+	language.Add("tool.npc_proficiency.0","Left-Click on a NPC to change his proficiency, Right-Click to change the proficiency of all active NPCs of this class.")
 
 	local values = {
 		[WEAPON_PROFICIENCY_POOR] = "Poor",
@@ -66,9 +66,9 @@ if(CLIENT) then
 	end
 	function TOOL.BuildCPanel(pnl)
 		if(!bWarned) then ShowWarning() end
-		pnl:Help("#tool.npctool_proficiency.0")
+		pnl:Help("#tool.npc_proficiency.0")
 		local pSl = NumSlider(pnl,"Proficiency:",nil,1,5,0)
-		local prof = values[GetConVarNumber("npctool_proficiency_value")] || "Poor"
+		local prof = values[GetConVarNumber("npc_proficiency_value")] || "Poor"
 		pSl.Wang:SetText(prof)
 		local i
 		for _,val in ipairs(values) do if(val == prof) then i = _ +1; break end end
@@ -79,12 +79,12 @@ if(CLIENT) then
 			num = math.Round(num)
 			local val = math.Clamp(num,1,5)
 			pSl.Wang:SetText(values[val -1] || "Poor")
-			RunConsoleCommand("npctool_proficiency_value",val -1)
+			RunConsoleCommand("npc_proficiency_value",val -1)
 			return ((num -1) /4),y
 		end
 	end
 	local tbProficiency
-	net.Receive("npctool_proficiency_update",function(len)
+	net.Receive("npc_proficiency_update",function(len)
 		local ent = net.ReadEntity()
 		if(!ent:IsValid()) then return end
 		local prof = net.ReadUInt(3)
@@ -103,27 +103,27 @@ if(CLIENT) then
 		end
 		notification.AddLegacy(text,0,8)
 	end)
-	net.Receive("npctool_proficiency_deploy",function(len)
-		net.Start("sv_npctool_proficiency_request")
+	net.Receive("npc_proficiency_deploy",function(len)
+		net.Start("sv_npc_proficiency_request")
 		net.SendToServer()
 	end)
-	net.Receive("npctool_proficiency_holster",function(len)
+	net.Receive("npc_proficiency_holster",function(len)
 		local wep = LocalPlayer():GetActiveWeapon()
-		if(wep:IsValid() && wep:GetClass() == "gmod_tool" && wep:GetMode() == "npctool_proficiency") then // False alarm
+		if(wep:IsValid() && wep:GetClass() == "gmod_tool" && wep:GetMode() == "npc_proficiency") then // False alarm
 			return
 		end
 		tbProficiency = nil
-		hook.Remove("RenderScreenspaceEffects","npctool_proficiency_draw")
-		hook.Remove("OnEntityCreated","npctool_proficiency_update")
+		hook.Remove("RenderScreenspaceEffects","npc_proficiency_draw")
+		hook.Remove("OnEntityCreated","npc_proficiency_update")
 	end)
-	net.Receive("cl_npctool_proficiency_request_sng",function(len)
+	net.Receive("cl_npc_proficiency_request_sng",function(len)
 		if(!tbProficiency) then return end
 		local ent = net.ReadEntity()
 		if(!ent:IsValid()) then return end
 		local prof = net.ReadUInt(3)
 		tbProficiency[ent] = prof
 	end)
-	net.Receive("cl_npctool_proficiency_request",function(len)
+	net.Receive("cl_npc_proficiency_request",function(len)
 		tbProficiency = {}
 		local num = net.ReadUInt(12)
 		for i = 1,num do
@@ -131,14 +131,14 @@ if(CLIENT) then
 			local prof = net.ReadUInt(3)
 			if(ent:IsValid()) then tbProficiency[ent] = prof end
 		end
-		hook.Add("OnEntityCreated","npctool_proficiency_update",function(ent)
+		hook.Add("OnEntityCreated","npc_proficiency_update",function(ent)
 			if(ent:IsValid() && ent:IsNPC()) then
-				net.Start("sv_npctool_proficiency_request_sng")
+				net.Start("sv_npc_proficiency_request_sng")
 					net.WriteEntity(ent)
 				net.SendToServer()
 			end
 		end)
-		hook.Add("RenderScreenspaceEffects","npctool_proficiency_draw",function()
+		hook.Add("RenderScreenspaceEffects","npc_proficiency_draw",function()
 			cam.Start3D(EyePos(),EyeAngles())
 			for ent,prof in pairs(tbProficiency) do
 				if(!ent:IsValid()) then tbProficiency[ent] = nil
@@ -160,23 +160,23 @@ if(CLIENT) then
 		end)
 	end)
 else
-	util.AddNetworkString("npctool_proficiency_update")
-	util.AddNetworkString("npctool_proficiency_holster")
-	util.AddNetworkString("npctool_proficiency_deploy")
-	util.AddNetworkString("sv_npctool_proficiency_request")
-	util.AddNetworkString("cl_npctool_proficiency_request")
-	util.AddNetworkString("sv_npctool_proficiency_request_sng")
-	util.AddNetworkString("cl_npctool_proficiency_request_sng")
-	net.Receive("sv_npctool_proficiency_request_sng",function(len,pl)
+	util.AddNetworkString("npc_proficiency_update")
+	util.AddNetworkString("npc_proficiency_holster")
+	util.AddNetworkString("npc_proficiency_deploy")
+	util.AddNetworkString("sv_npc_proficiency_request")
+	util.AddNetworkString("cl_npc_proficiency_request")
+	util.AddNetworkString("sv_npc_proficiency_request_sng")
+	util.AddNetworkString("cl_npc_proficiency_request_sng")
+	net.Receive("sv_npc_proficiency_request_sng",function(len,pl)
 		local ent = net.ReadEntity()
 		if(!ent:IsValid() || !ent:IsNPC()) then return end
 		local prof = ent:GetCurrentWeaponProficiency()
-		net.Start("cl_npctool_proficiency_request_sng")
+		net.Start("cl_npc_proficiency_request_sng")
 			net.WriteEntity(ent)
 			net.WriteUInt(prof,3)
 		net.Send(pl)
 	end)
-	net.Receive("sv_npctool_proficiency_request",function(len,pl)
+	net.Receive("sv_npc_proficiency_request",function(len,pl)
 		local tbEnts = {}
 		local num = 0
 		for _,ent in ipairs(ents.GetAll()) do
@@ -185,7 +185,7 @@ else
 				tbEnts[ent] = ent:GetCurrentWeaponProficiency()
 			end
 		end
-		net.Start("cl_npctool_proficiency_request")
+		net.Start("cl_npc_proficiency_request")
 			net.WriteUInt(num,12)
 			for ent,prof in pairs(tbEnts) do
 				net.WriteEntity(ent)
@@ -194,7 +194,7 @@ else
 		net.Send(pl)
 	end)
 	function TOOL:Deploy()
-		net.Start("npctool_proficiency_deploy")
+		net.Start("npc_proficiency_deploy")
 		net.Send(self:GetOwner())
 	end
 end
@@ -204,7 +204,7 @@ function TOOL:LeftClick(tr)
 	if(tr.Entity:IsValid() && tr.Entity:IsNPC()) then
 		local prof = self:GetClientNumber("value")
 		tr.Entity:SetCurrentWeaponProficiency(prof)
-		net.Start("npctool_proficiency_update")
+		net.Start("npc_proficiency_update")
 			net.WriteEntity(tr.Entity)
 			net.WriteUInt(prof,3)
 			net.WriteUInt(0,1)
@@ -221,7 +221,7 @@ function TOOL:RightClick(tr)
 		for _,ent in ipairs(ents.FindByClass(tr.Entity:GetClass())) do
 			ent:SetCurrentWeaponProficiency(prof)
 		end
-		net.Start("npctool_proficiency_update")
+		net.Start("npc_proficiency_update")
 			net.WriteEntity(tr.Entity)
 			net.WriteUInt(prof,3)
 			net.WriteUInt(1,1)
@@ -233,6 +233,6 @@ end
 
 function TOOL:Holster()
 	if(CLIENT) then return end
-	net.Start("npctool_proficiency_holster")
+	net.Start("npc_proficiency_holster")
 	net.Send(self:GetOwner())
 end

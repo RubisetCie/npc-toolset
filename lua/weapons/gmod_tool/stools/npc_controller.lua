@@ -1,23 +1,23 @@
 TOOL.Category = "NPC Control"
-TOOL.Name = "#tool.npctool_controller.name"
+TOOL.Name = "#tool.npc_controller.name"
 TOOL.Command = nil
 TOOL.ConfigName = ""
 
 if(CLIENT) then
 	TOOL.ClientConVar["walk"] = 0
 	TOOL.ClientConVar["showcircle"] = 1
-	language.Add("tool.npctool_controller.name","NPC Controller")
-	language.Add("tool.npctool_controller.desc","Control a NPC")
-	language.Add("tool.npctool_controller.0","Left-Click to de/select a NPC, or make the selected NPC move to a position/attack a NPC; Right-Click to possess the selected NPC")
+	language.Add("tool.npc_controller.name","NPC Controller")
+	language.Add("tool.npc_controller.desc","Control a NPC")
+	language.Add("tool.npc_controller.0","Left-Click to de/select a NPC, or make the selected NPC move to a position/attack a NPC; Right-Click to possess the selected NPC")
 
 	function TOOL.BuildCPanel(pnl)
-		pnl:Help("#tool.npctool_controller.0")
-		pnl:CheckBox("Walk to Position","npctool_controller_walk")
-		pnl:CheckBox("Show Circle","npctool_controller_showcircle")
+		pnl:Help("#tool.npc_controller.0")
+		pnl:CheckBox("Walk to Position","npc_controller_walk")
+		pnl:CheckBox("Show Circle","npc_controller_showcircle")
 	end
 
 	local tbSelected = {}
-	cvars.AddChangeCallback("npctool_controller_showcircle",function(cvar,prev,new)
+	cvars.AddChangeCallback("npc_controller_showcircle",function(cvar,prev,new)
 		if(tobool(new)) then
 			for _,ent in ipairs(tbSelected) do // TODO: Don't do this if tool isn't equipped
 				if(ent:IsValid()) then
@@ -48,7 +48,7 @@ if(CLIENT) then
 		surface.DrawTexturedRect(ScrW() *0.5 -12,ScrH() *0.5 -12,24,24)
 	end
 
-	net.Receive("npctool_contr_add",function(len)
+	net.Receive("npc_contr_add",function(len)
 		local ent = net.ReadEntity()
 		if(!ent:IsValid()) then return end
 		local bSelected = net.ReadUInt(1) == 1
@@ -62,12 +62,12 @@ if(CLIENT) then
 			end
 		else
 			table.insert(tbSelected,ent)
-			if(GetConVarNumber("npctool_controller_showcircle") != 0) then ParticleEffectAttach("plate_green",PATTACH_ABSORIGIN_FOLLOW,ent,0) end
+			if(GetConVarNumber("npc_controller_showcircle") != 0) then ParticleEffectAttach("plate_green",PATTACH_ABSORIGIN_FOLLOW,ent,0) end
 		end
 	end)
 
-	net.Receive("npctool_controller_deploy",function(len)
-		if(GetConVarNumber("npctool_controller_showcircle") == 0) then return end
+	net.Receive("npc_controller_deploy",function(len)
+		if(GetConVarNumber("npc_controller_showcircle") == 0) then return end
 		for _,ent in ipairs(tbSelected) do
 			if(ent:IsValid()) then
 				ParticleEffectAttach("plate_green",PATTACH_ABSORIGIN_FOLLOW,ent,0)
@@ -75,17 +75,17 @@ if(CLIENT) then
 		end
 	end)
 
-	net.Receive("npctool_controller_holster",function(len)
+	net.Receive("npc_controller_holster",function(len)
 		for _,ent in ipairs(tbSelected) do
 			if(ent:IsValid()) then ent:StopParticles() end
 		end
 	end)
 else
-	util.AddNetworkString("npctool_contr_add")
-	util.AddNetworkString("npctool_controller_holster")
-	util.AddNetworkString("npctool_controller_deploy")
+	util.AddNetworkString("npc_contr_add")
+	util.AddNetworkString("npc_controller_holster")
+	util.AddNetworkString("npc_controller_deploy")
 	function TOOL:Deploy()
-		net.Start("npctool_controller_deploy")
+		net.Start("npc_controller_deploy")
 		net.Send(self:GetOwner())
 	end
 	function TOOL:StopControl(ent)
@@ -106,7 +106,7 @@ else
 		end
 		self.m_tbDisp[ent] = nil
 		ent.m_bControlled = false
-		net.Start("npctool_contr_add")
+		net.Start("npc_contr_add")
 			net.WriteEntity(ent)
 			net.WriteUInt(1,0)
 		net.Send(self:GetOwner())
@@ -127,7 +127,7 @@ else
 			end
 		end
 		table.insert(self.m_tbNPCs,ent)
-		net.Start("npctool_contr_add")
+		net.Start("npc_contr_add")
 			net.WriteEntity(ent)
 			net.WriteUInt(1,1)
 		net.Send(self:GetOwner())
@@ -196,6 +196,6 @@ end
 
 function TOOL:Holster()
 	if(CLIENT) then return end
-	net.Start("npctool_controller_holster")
+	net.Start("npc_controller_holster")
 	net.Send(self:GetOwner())
 end

@@ -1,15 +1,15 @@
 TOOL.Category = "NPC Control"
-TOOL.Name = "#tool.npctool_notarget.name"
+TOOL.Name = "#tool.npc_notarget.name"
 TOOL.Command = nil
 TOOL.ConfigName = ""
 
 if(CLIENT) then
-	language.Add("tool.npctool_notarget.name","No Target")
-	language.Add("tool.npctool_notarget.desc","Enable/Disable notarget for a NPC or yourself")
-	language.Add("tool.npctool_notarget.0","Left-Click to enable/disable notarget for the NPC you're looking at. Right click to enable/disable notarget for yourself.")
+	language.Add("tool.npc_notarget.name","No Target")
+	language.Add("tool.npc_notarget.desc","Enable/Disable notarget for a NPC or yourself")
+	language.Add("tool.npc_notarget.0","Left-Click to enable/disable notarget for the NPC you're looking at. Right click to enable/disable notarget for yourself.")
 
 	function TOOL.BuildCPanel(pnl)
-		pnl:Help("#tool.npctool_notarget.0")
+		pnl:Help("#tool.npc_notarget.0")
 	end
 else
 	local _R = debug.getregistry()

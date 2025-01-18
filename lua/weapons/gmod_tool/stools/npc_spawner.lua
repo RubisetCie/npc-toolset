@@ -1,5 +1,5 @@
 TOOL.Category = "NPC Control"
-TOOL.Name = "#tool.npctool_spawner.name"
+TOOL.Name = "#tool.npc_spawner.name"
 TOOL.Command = nil
 TOOL.ConfigName = ""
 
@@ -58,12 +58,12 @@ if(CLIENT) then
 		return e
 	end
 	local function CreatePatrolPoint(pos)
-		if(GetConVarNumber("npctool_spawner_patrolshow") != 0) then
+		if(GetConVarNumber("npc_spawner_patrolshow") != 0) then
 			local e = CreatePatrolPointEffect(pos)
 			if(e) then e:SetID(table.insert(tbPPEffects,e)) end
 		end
 		table.insert(tbPatrolPoints,pos)
-		net.Start("sv_npctool_spawner_ppoint")
+		net.Start("sv_npc_spawner_ppoint")
 		net.SendToServer()
 	end
 	local function GetTraceEffect()
@@ -86,7 +86,7 @@ if(CLIENT) then
 	end
 	local mat = Material("trails/laser")
 	local function ShowPatrolPoints(b)
-		hook.Remove("RenderScreenspaceEffects","npctool_spawner_renderppoints")
+		hook.Remove("RenderScreenspaceEffects","npc_spawner_renderppoints")
 		for _,ent in ipairs(tbPPEffects) do ent.m_bRemove = true end
 		table.Empty(tbPPEffects)
 		if(!b) then return end
@@ -96,10 +96,10 @@ if(CLIENT) then
 		end
 		local offset = Vector(0,0,6)
 		local col = Color(255,255,255,255)
-		local cv = GetConVar("npctool_spawner_patroltype")
+		local cv = GetConVar("npc_spawner_patroltype")
 		local colDefault = Color(255,255,255,255)
 		local colSelected = Color(255,0,0,255)
-		hook.Add("RenderScreenspaceEffects","npctool_spawner_renderppoints",function()
+		hook.Add("RenderScreenspaceEffects","npc_spawner_renderppoints",function()
 			cam.Start3D(EyePos(),EyeAngles())
 			render.SetMaterial(mat)
 			local num = #tbPPEffects
@@ -121,11 +121,11 @@ if(CLIENT) then
 			end
 		end)
 	end
-	cvars.AddChangeCallback("npctool_spawner_patrolshow",function(cvar,old,new)
+	cvars.AddChangeCallback("npc_spawner_patrolshow",function(cvar,old,new)
 		ShowPatrolPoints(tobool(new))
 	end)
-	local cvPPointSelected = CreateClientConVar("npctool_spawner_ppoints_select",0,true)
-	concommand.Add("npctool_spawner_ppoints_add",function(pl,cmd,args)
+	local cvPPointSelected = CreateClientConVar("npc_spawner_ppoints_select",0,true)
+	concommand.Add("npc_spawner_ppoints_add",function(pl,cmd,args)
 		local tr = util.TraceLine(util.GetPlayerTrace(pl))
 		CreatePatrolPoint(tr.HitPos)
 	end)
@@ -149,17 +149,17 @@ if(CLIENT) then
 		table.Empty(tbPatrolPoints)
 		table.Empty(tbPPEffects)
 	end
-	net.Receive("npctool_spawner_ppoint_remove",function(len)
+	net.Receive("npc_spawner_ppoint_remove",function(len)
 		RemovePatrolPoint(#tbPatrolPoints)
 	end)
-	concommand.Add("npctool_spawner_ppoints_remove",function(pl,cmd,args)
+	concommand.Add("npc_spawner_ppoints_remove",function(pl,cmd,args)
 		RemovePatrolPoint(cvPPointSelected:GetInt())
 	end)
-	concommand.Add("npctool_spawner_ppoints_clear",ClearPatrolPoints)
+	concommand.Add("npc_spawner_ppoints_clear",ClearPatrolPoints)
 	local tbKeyValues = {}
 	local tbRelationships = {}
-	CreateClientConVar("npctool_spawner_keyvalues_select","",true)
-	CreateClientConVar("npctool_spawner_relationships_select","",true)
+	CreateClientConVar("npc_spawner_keyvalues_select","",true)
+	CreateClientConVar("npc_spawner_relationships_select","",true)
 	local function CreateSaveDialog(title,fcSave)
 		local w, h = 220,110
 		local x,y = ScrW() *0.5 -w *0.5,ScrH() *0.5 -h *0.5
@@ -198,7 +198,7 @@ if(CLIENT) then
 	local preset
 	local function MainMenu(pnl)
 		pnl:Clear()
-		pnl:Help("#tool.npctool_spawner.0")
+		pnl:Help("#tool.npc_spawner.0")
 		local p = vgui.Create("DPanel",pnl)
 		p.Paint = function() end
 		pnl:AddItem(p)
@@ -213,20 +213,20 @@ if(CLIENT) then
 		end
 		if(IDSelected) then pCBox:ChooseOptionID(IDSelected) end
 		pCBox.OnSelect = function(pCBox,idx,val,data)
-			net.Start("npctool_spawner_clearundo")
+			net.Start("npc_spawner_clearundo")
 			net.SendToServer()
 			preset = val
 			ClearPatrolPoints()
 			table.Empty(tbKeyValues)
 			table.Empty(tbRelationships)
 			if(val == "Default") then
-				if(tbCvars.class) then RunConsoleCommand("npctool_spawner_class",tbCvars.class) end
-				if(tbCvars.proficiency) then RunConsoleCommand("npctool_spawner_proficiency",tbCvars.proficiency) end
+				if(tbCvars.class) then RunConsoleCommand("npc_spawner_class",tbCvars.class) end
+				if(tbCvars.proficiency) then RunConsoleCommand("npc_spawner_proficiency",tbCvars.proficiency) end
 				timer.Simple(0.05,function()
-					MainMenu(controlpanel.Get("npctool_spawner"))
+					MainMenu(controlpanel.Get("npc_spawner"))
 					timer.Simple(0,function()
 						for cv,def in pairs(tbCvars) do
-							if(cv != "class" && cv != "proficiency") then RunConsoleCommand("npctool_spawner_" .. cv,def) end
+							if(cv != "class" && cv != "proficiency") then RunConsoleCommand("npc_spawner_" .. cv,def) end
 						end
 					end)
 				end)
@@ -243,18 +243,18 @@ if(CLIENT) then
 				end
 			end
 			if(data.cvars) then
-				if(data.cvars.class) then RunConsoleCommand("npctool_spawner_class",data.cvars.class); data.cvars.class = nil end // Need to set the class before reloading the menu
-				if(data.cvars.proficiency) then RunConsoleCommand("npctool_spawner_proficiency",data.cvars.proficiency); data.cvars.proficiency = nil end
-				if(data.cvars.delay) then RunConsoleCommand("npctool_spawner_delay",data.cvars.delay); data.cvars.delay = nil end
-				if(data.cvars.max) then RunConsoleCommand("npctool_spawner_max",data.cvars.max); data.cvars.max = nil end
-				if(data.cvars.total) then RunConsoleCommand("npctool_spawner_total",data.cvars.total); data.cvars.total = nil end
+				if(data.cvars.class) then RunConsoleCommand("npc_spawner_class",data.cvars.class); data.cvars.class = nil end // Need to set the class before reloading the menu
+				if(data.cvars.proficiency) then RunConsoleCommand("npc_spawner_proficiency",data.cvars.proficiency); data.cvars.proficiency = nil end
+				if(data.cvars.delay) then RunConsoleCommand("npc_spawner_delay",data.cvars.delay); data.cvars.delay = nil end
+				if(data.cvars.max) then RunConsoleCommand("npc_spawner_max",data.cvars.max); data.cvars.max = nil end
+				if(data.cvars.total) then RunConsoleCommand("npc_spawner_total",data.cvars.total); data.cvars.total = nil end
 			end
 			timer.Simple(0.05,function()
-				MainMenu(controlpanel.Get("npctool_spawner"))
+				MainMenu(controlpanel.Get("npc_spawner"))
 				if(data.cvars) then
 					timer.Simple(0,function()
 						for cv,val in pairs(data.cvars) do
-							if(cv != "class" && cv != "proficiency") then RunConsoleCommand("npctool_spawner_" .. cv,val) end
+							if(cv != "class" && cv != "proficiency") then RunConsoleCommand("npc_spawner_" .. cv,val) end
 						end
 					end)
 				end
@@ -274,19 +274,19 @@ if(CLIENT) then
 				local data = {}
 				data.cvars = {}
 				for cv in pairs(tbCvars) do
-					data.cvars[cv] = GetConVarString("npctool_spawner_" .. cv)
+					data.cvars[cv] = GetConVarString("npc_spawner_" .. cv)
 				end
 				data.keyvalues = tbKeyValues
 				data.patrolpoints = tbPatrolPoints
 				data.relationships = tbRelationships
 				file.CreateDir("npcspawner")
 				file.Write("npcspawner/" .. name,util.TableToJSON(data))
-				MainMenu(controlpanel.Get("npctool_spawner"))
+				MainMenu(controlpanel.Get("npc_spawner"))
 			end)
 		end
 		local options = {}
 		for _,npc in pairs(list.Get("NPC")) do
-			options[npc.Name .. " [" .. npc.Class .. "]"] = {npctool_spawner_class = _}
+			options[npc.Name .. " [" .. npc.Class .. "]"] = {npc_spawner_class = _}
 		end
 
 		local npcz = vgui.Create("DListView")
@@ -309,16 +309,16 @@ if(CLIENT) then
 			end
 		end
 		pnl:AddItem(npcz)
-		pnl:TextEntry("Squad Name","npctool_spawner_squad")
-		pnl:TextEntry("Spawn Flags","npctool_spawner_spawnflags")
+		pnl:TextEntry("Squad Name","npc_spawner_squad")
+		pnl:TextEntry("Spawn Flags","npc_spawner_spawnflags")
 		local options = {}
 		local tbWeps = {}
 		for class,data in pairs(list.Get("Weapon")) do
 			if(data.Spawnable || (data.AdminSpawnable && LocalPlayer():IsAdmin())) then
-				options[data.PrintName] = {npctool_spawner_equipment = class}
+				options[data.PrintName] = {npc_spawner_equipment = class}
 			end
 		end
-		options["No Weapon"] = {npctool_spawner_equipment = ""}
+		options["No Weapon"] = {npc_spawner_equipment = ""}
 		local equip = vgui.Create("CtrlListBox",pnl)
 		local equipLbl = vgui.Create("DLabel",pnl)
 		for k,v in pairs(options) do
@@ -340,7 +340,7 @@ if(CLIENT) then
 			[WEAPON_PROFICIENCY_DEFAULT] = "Default"
 		}
 		local pSl = NumSlider(pnl,"Weapon Proficiency:",nil,1,7,0)
-		local prof = values[GetConVarNumber("npctool_spawner_proficiency")] || "Poor"
+		local prof = values[GetConVarNumber("npc_spawner_proficiency")] || "Poor"
 		pSl.Wang:SetText(prof)
 		local i
 		for _,val in ipairs(values) do if(val == prof) then i = _ +1; break end end
@@ -351,31 +351,31 @@ if(CLIENT) then
 			num = math.Round(num)
 			local val = math.Clamp(num,1,7)
 			pSl.Wang:SetText(values[val -1] || "Poor")
-			RunConsoleCommand("npctool_spawner_proficiency",val -1)
+			RunConsoleCommand("npc_spawner_proficiency",val -1)
 			return ((num -1) /6),y
 		end
 
-		pnl:NumSlider("Spawn delay","npctool_spawner_delay",1,30,2)
-		pnl:NumSlider("Max Alive NPCs","npctool_spawner_max",1,25,0)
-		pnl:NumSlider("Total NPC Amount","npctool_spawner_total",0,250,0)
+		pnl:NumSlider("Spawn delay","npc_spawner_delay",1,30,2)
+		pnl:NumSlider("Max Alive NPCs","npc_spawner_max",1,25,0)
+		pnl:NumSlider("Total NPC Amount","npc_spawner_total",0,250,0)
 		pnl:ControlHelp("(0 = infinite)")
-		pnl:KeyBinder("Turn On","npctool_spawner_turnon","Turn Off","npctool_spawner_turnoff")
+		pnl:KeyBinder("Turn On","npc_spawner_turnon","Turn Off","npc_spawner_turnoff")
 
-		pnl:CheckBox("Show Effects","npctool_spawner_showeffects")
-		pnl:CheckBox("Start On","npctool_spawner_starton")
-		pnl:CheckBox("Start Burrowed","npctool_spawner_startburrowed")
-		pnl:CheckBox("Remove Spawned on Removal","npctool_spawner_deleteonremove")
+		pnl:CheckBox("Show Effects","npc_spawner_showeffects")
+		pnl:CheckBox("Start On","npc_spawner_starton")
+		pnl:CheckBox("Start Burrowed","npc_spawner_startburrowed")
+		pnl:CheckBox("Remove Spawned on Removal","npc_spawner_deleteonremove")
 
-		if(GetConVarNumber("npctool_spawner_patrolshow") != 0) then ShowPatrolPoints(true) end
+		if(GetConVarNumber("npc_spawner_patrolshow") != 0) then ShowPatrolPoints(true) end
 		pnl:Help("Patrol")
-		pnl:CheckBox("Show Patrol Points","npctool_spawner_patrolshow")
-		pnl:CheckBox("Walk","npctool_spawner_patrolwalk")
-		pnl:CheckBox("Strict","npctool_spawner_patrolstrict")
+		pnl:CheckBox("Show Patrol Points","npc_spawner_patrolshow")
+		pnl:CheckBox("Walk","npc_spawner_patrolwalk")
+		pnl:CheckBox("Strict","npc_spawner_patrolstrict")
 
 		local poptions = {
-			["Just forth"] = {npctool_spawner_patroltype = "1"},
-			["Back and forth"] = {npctool_spawner_patroltype = "2"},
-			["Circles"] = {npctool_spawner_patroltype = "3"}
+			["Just forth"] = {npc_spawner_patroltype = "1"},
+			["Back and forth"] = {npc_spawner_patroltype = "2"},
+			["Circles"] = {npc_spawner_patroltype = "3"}
 		}
 		local ptypes = vgui.Create("CtrlListBox",pnl)
 		local ptypesLbl = vgui.Create("DLabel",pnl)
@@ -387,11 +387,11 @@ if(CLIENT) then
 		ptypes:SetHeight(25)
 		ptypes:Dock(TOP)
 		pnl:AddItem(ptypesLbl,ptypes)
-		pnl:Button("Clear Patrol Points","npctool_spawner_ppoints_clear")
+		pnl:Button("Clear Patrol Points","npc_spawner_ppoints_clear")
 
 		local options = {}
 		for key,val in pairs(tbKeyValues) do
-			options[key .. " = " .. val] = {npctool_spawner_keyvalues_select = key}
+			options[key .. " = " .. val] = {npc_spawner_keyvalues_select = key}
 		end
 
 		local kvals = vgui.Create("DListView")
@@ -415,9 +415,9 @@ if(CLIENT) then
 		end
 		pnl:AddItem(kvals)
 
-		pnl:Button("Add Keyvalue","npctool_spawner_keyvalues_add")
-		pnl:Button("Remove Keyvalue","npctool_spawner_keyvalues_remove")
-		pnl:Button("Clear Keyvalues","npctool_spawner_keyvalues_clear")
+		pnl:Button("Add Keyvalue","npc_spawner_keyvalues_add")
+		pnl:Button("Remove Keyvalue","npc_spawner_keyvalues_remove")
+		pnl:Button("Clear Keyvalues","npc_spawner_keyvalues_clear")
 
 		local options = {}
 		for tgt,disp in pairs(tbRelationships) do
@@ -429,7 +429,7 @@ if(CLIENT) then
 			local name = language.GetPhrase("#" .. tgt)
 			if(name[1] == "#") then name = tgt end
 			str = str .. " '" .. name .. "'"
-			options[str] = {npctool_spawner_relationships_select = tgt}
+			options[str] = {npc_spawner_relationships_select = tgt}
 		end
 
 		local rlships = vgui.Create("DListView")
@@ -452,36 +452,36 @@ if(CLIENT) then
 			end
 		end
 		pnl:AddItem(rlships)
-		pnl:Button("Add Relationship","npctool_spawner_relationships_add")
-		pnl:Button("Remove Relationship","npctool_spawner_relationships_remove")
-		pnl:Button("Clear Relationships","npctool_spawner_relationships_clear")
+		pnl:Button("Add Relationship","npc_spawner_relationships_add")
+		pnl:Button("Remove Relationship","npc_spawner_relationships_remove")
+		pnl:Button("Clear Relationships","npc_spawner_relationships_clear")
 	end
-	concommand.Add("npctool_spawner_submenu_main",function(pl,cmd,args)
-		MainMenu(controlpanel.Get("npctool_spawner"))
+	concommand.Add("npc_spawner_submenu_main",function(pl,cmd,args)
+		MainMenu(controlpanel.Get("npc_spawner"))
 	end)
-	language.Add("tool.npctool_spawner.name","NPC Spawn Creator")
-	language.Add("tool.npctool_spawner.desc","Create an automatic NPC spawner")
-	language.Add("tool.npctool_spawner.0","Left-Click to create the spawner, Right-Click to create or remove a patrol point.")
+	language.Add("tool.npc_spawner.name","NPC Spawn Creator")
+	language.Add("tool.npc_spawner.desc","Create an automatic NPC spawner")
+	language.Add("tool.npc_spawner.0","Left-Click to create the spawner, Right-Click to create or remove a patrol point.")
 
 	function TOOL.BuildCPanel(pnl)
 		MainMenu(pnl)
 	end
 
-	concommand.Add("npctool_spawner_relationships_remove",function(pl,cmd,args)
-		local sel = GetConVarString("npctool_spawner_relationships_select")
+	concommand.Add("npc_spawner_relationships_remove",function(pl,cmd,args)
+		local sel = GetConVarString("npc_spawner_relationships_select")
 		tbRelationships[sel] = nil
-		MainMenu(controlpanel.Get("npctool_spawner"))
+		MainMenu(controlpanel.Get("npc_spawner"))
 	end)
-	concommand.Add("npctool_spawner_relationships_clear",function(pl,cmd,args)
+	concommand.Add("npc_spawner_relationships_clear",function(pl,cmd,args)
 		tbRelationships = {}
-		MainMenu(controlpanel.Get("npctool_spawner"))
+		MainMenu(controlpanel.Get("npc_spawner"))
 	end)
-	concommand.Add("npctool_spawner_relationships_add",function(pl,cmd,args)
+	concommand.Add("npc_spawner_relationships_add",function(pl,cmd,args)
 		local tgt = args[1]
 		local disp = args[2]
 		if(tgt && disp) then
 			tbRelationships[tgt] = tonumber(disp) || D_NU
-			MainMenu(controlpanel.Get("npctool_spawner"))
+			MainMenu(controlpanel.Get("npc_spawner"))
 			return
 		end
 		local w,h = 205,145
@@ -546,7 +546,7 @@ if(CLIENT) then
 		b.DoClick = function(b)
 			p:Close()
 			if(class && disp) then
-				RunConsoleCommand("npctool_spawner_relationships_add",class,disp)
+				RunConsoleCommand("npc_spawner_relationships_add",class,disp)
 			end
 		end
 
@@ -559,21 +559,21 @@ if(CLIENT) then
 		end
 	end)
 
-	concommand.Add("npctool_spawner_keyvalues_remove",function(pl,cmd,args)
-		local sel = GetConVarString("npctool_spawner_keyvalues_select")
+	concommand.Add("npc_spawner_keyvalues_remove",function(pl,cmd,args)
+		local sel = GetConVarString("npc_spawner_keyvalues_select")
 		tbKeyValues[sel] = nil
-		MainMenu(controlpanel.Get("npctool_spawner"))
+		MainMenu(controlpanel.Get("npc_spawner"))
 	end)
-	concommand.Add("npctool_spawner_keyvalues_clear",function(pl,cmd,args)
+	concommand.Add("npc_spawner_keyvalues_clear",function(pl,cmd,args)
 		tbKeyValues = {}
-		MainMenu(controlpanel.Get("npctool_spawner"))
+		MainMenu(controlpanel.Get("npc_spawner"))
 	end)
-	concommand.Add("npctool_spawner_keyvalues_add",function(pl,cmd,args)
+	concommand.Add("npc_spawner_keyvalues_add",function(pl,cmd,args)
 		local key = args[1]
 		local val = args[2]
 		if(key && val) then
 			tbKeyValues[key] = val
-			MainMenu(controlpanel.Get("npctool_spawner"))
+			MainMenu(controlpanel.Get("npc_spawner"))
 			return
 		end
 		local w,h = 175,145
@@ -617,7 +617,7 @@ if(CLIENT) then
 			local key = teKey:GetValue()
 			local val = teVal:GetValue()
 			if(key != "" && val != "") then
-				RunConsoleCommand("npctool_spawner_keyvalues_add",key,val)
+				RunConsoleCommand("npc_spawner_keyvalues_add",key,val)
 			end
 		end
 
@@ -629,36 +629,36 @@ if(CLIENT) then
 			p:Close()
 		end
 	end)
-	net.Receive("cl_npctool_spawner_ppoint",function(len)
+	net.Receive("cl_npc_spawner_ppoint",function(len)
 		local e,eID = GetTraceEffect()
 		if(e) then RemovePatrolPoint(eID); return end
 		local pos = net.ReadVector()
 		CreatePatrolPoint(pos)
 	end)
-	net.Receive("cl_npctool_spawner_spawn",function(len)
+	net.Receive("cl_npc_spawner_spawn",function(len)
 		local yaw = net.ReadFloat()
 		local pos = net.ReadVector()
-		net.Start("sv_npctool_spawner_spawn")
+		net.Start("sv_npc_spawner_spawn")
 			net.WriteVector(pos)
 			net.WriteFloat(yaw)
-			net.WriteString(GetConVarString("npctool_spawner_class"))
-			net.WriteString(GetConVarString("npctool_spawner_squad"))
-			net.WriteUInt(GetConVarNumber("npctool_spawner_spawnflags"),25)
-			net.WriteString(GetConVarString("npctool_spawner_equipment"))
-			--net.WriteString(GetConVarString("npctool_spawner_soundtrack"))
-			net.WriteUInt(GetConVarNumber("npctool_spawner_proficiency"),4)
-			net.WriteFloat(GetConVarNumber("npctool_spawner_delay"))
-			net.WriteUInt(GetConVarNumber("npctool_spawner_max"),6)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_total"),14)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_turnon"),13)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_turnoff"),13)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_showeffects"),1)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_starton"),1)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_startburrowed"),1)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_deleteonremove"),1)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_patrolwalk"),1)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_patroltype"),2)
-			net.WriteUInt(GetConVarNumber("npctool_spawner_patrolstrict"),1)
+			net.WriteString(GetConVarString("npc_spawner_class"))
+			net.WriteString(GetConVarString("npc_spawner_squad"))
+			net.WriteUInt(GetConVarNumber("npc_spawner_spawnflags"),25)
+			net.WriteString(GetConVarString("npc_spawner_equipment"))
+			--net.WriteString(GetConVarString("npc_spawner_soundtrack"))
+			net.WriteUInt(GetConVarNumber("npc_spawner_proficiency"),4)
+			net.WriteFloat(GetConVarNumber("npc_spawner_delay"))
+			net.WriteUInt(GetConVarNumber("npc_spawner_max"),6)
+			net.WriteUInt(GetConVarNumber("npc_spawner_total"),14)
+			net.WriteUInt(GetConVarNumber("npc_spawner_turnon"),13)
+			net.WriteUInt(GetConVarNumber("npc_spawner_turnoff"),13)
+			net.WriteUInt(GetConVarNumber("npc_spawner_showeffects"),1)
+			net.WriteUInt(GetConVarNumber("npc_spawner_starton"),1)
+			net.WriteUInt(GetConVarNumber("npc_spawner_startburrowed"),1)
+			net.WriteUInt(GetConVarNumber("npc_spawner_deleteonremove"),1)
+			net.WriteUInt(GetConVarNumber("npc_spawner_patrolwalk"),1)
+			net.WriteUInt(GetConVarNumber("npc_spawner_patroltype"),2)
+			net.WriteUInt(GetConVarNumber("npc_spawner_patrolstrict"),1)
 			net.WriteUInt(table.Count(tbKeyValues),8)
 			for key,val in pairs(tbKeyValues) do
 				net.WriteString(key)
@@ -676,32 +676,32 @@ if(CLIENT) then
 			end
 		net.SendToServer()
 	end)
-	net.Receive("npctool_spawner_deploy",function(len)
-		if(GetConVarNumber("npctool_spawner_patrolshow") != 0) then ShowPatrolPoints(true) end
+	net.Receive("npc_spawner_deploy",function(len)
+		if(GetConVarNumber("npc_spawner_patrolshow") != 0) then ShowPatrolPoints(true) end
 	end)
-	net.Receive("npctool_spawner_holster",function(len)
+	net.Receive("npc_spawner_holster",function(len)
 		local wep = LocalPlayer():GetActiveWeapon()
-		if(wep:IsValid() && wep:GetClass() == "gmod_tool" && wep:GetMode() == "npctool_spawner") then
-			if(GetConVarNumber("npctool_spawner_patrolshow") != 0) then ShowPatrolPoints(true) end
+		if(wep:IsValid() && wep:GetClass() == "gmod_tool" && wep:GetMode() == "npc_spawner") then
+			if(GetConVarNumber("npc_spawner_patrolshow") != 0) then ShowPatrolPoints(true) end
 			return
 		end
 		ShowPatrolPoints(false)
 	end)
 else
-	util.AddNetworkString("cl_npctool_spawner_spawn")
-	util.AddNetworkString("sv_npctool_spawner_spawn")
-	util.AddNetworkString("cl_npctool_spawner_ppoint")
-	util.AddNetworkString("sv_npctool_spawner_ppoint")
-	util.AddNetworkString("npctool_spawner_ppoint_remove")
-	util.AddNetworkString("npctool_spawner_clearundo")
-	util.AddNetworkString("npctool_spawner_holster")
-	util.AddNetworkString("npctool_spawner_deploy")
+	util.AddNetworkString("cl_npc_spawner_spawn")
+	util.AddNetworkString("sv_npc_spawner_spawn")
+	util.AddNetworkString("cl_npc_spawner_ppoint")
+	util.AddNetworkString("sv_npc_spawner_ppoint")
+	util.AddNetworkString("npc_spawner_ppoint_remove")
+	util.AddNetworkString("npc_spawner_clearundo")
+	util.AddNetworkString("npc_spawner_holster")
+	util.AddNetworkString("npc_spawner_deploy")
 	function TOOL:Deploy()
-		net.Start("npctool_spawner_deploy")
+		net.Start("npc_spawner_deploy")
 		net.Send(self:GetOwner())
 	end
-	net.Receive("npctool_spawner_clearundo",function(len,pl)
-		if !pl:HasWeapon("gmod_tool") or pl:GetWeapon("gmod_tool").Mode != "npctool_spawner" then return end
+	net.Receive("npc_spawner_clearundo",function(len,pl)
+		if !pl:HasWeapon("gmod_tool") or pl:GetWeapon("gmod_tool").Mode != "npc_spawner" then return end
 		for _,undo in pairs(undo.GetTable()) do
 			for i = #undo,1,-1 do
 				local data = undo[i]
@@ -711,19 +711,19 @@ else
 			end
 		end
 	end)
-	net.Receive("sv_npctool_spawner_ppoint",function(len,pl)
-		if !pl:HasWeapon("gmod_tool") or pl:GetWeapon("gmod_tool").Mode != "npctool_spawner" then return end
+	net.Receive("sv_npc_spawner_ppoint",function(len,pl)
+		if !pl:HasWeapon("gmod_tool") or pl:GetWeapon("gmod_tool").Mode != "npc_spawner" then return end
 		undo.Create("PatrolPoint")
 			undo.AddFunction(function()
-				net.Start("npctool_spawner_ppoint_remove")
+				net.Start("npc_spawner_ppoint_remove")
 				net.Send(pl)
 			end)
 			undo.SetPlayer(pl)
 			undo.SetCustomUndoText("Undone Patrol Point")
 		undo.Finish("Patrol Point")
 	end)
-	net.Receive("sv_npctool_spawner_spawn",function(len,pl)
-		if !pl:HasWeapon("gmod_tool") or pl:GetWeapon("gmod_tool").Mode != "npctool_spawner" then return end
+	net.Receive("sv_npc_spawner_spawn",function(len,pl)
+		if !pl:HasWeapon("gmod_tool") or pl:GetWeapon("gmod_tool").Mode != "npc_spawner" then return end
 		local pos = net.ReadVector()
 		local yaw = net.ReadFloat()
 		local type = net.ReadString()
@@ -814,7 +814,7 @@ end
 
 function TOOL:LeftClick(tr)
 	if(CLIENT) then return true end
-	net.Start("cl_npctool_spawner_spawn")
+	net.Start("cl_npc_spawner_spawn")
 		net.WriteFloat(self:GetOwner():GetAimVector():Angle().y)
 		net.WriteVector(tr.HitPos)
 	net.Send(self:GetOwner())
@@ -823,7 +823,7 @@ end
 
 function TOOL:RightClick(tr)
 	if(CLIENT) then return true end
-	net.Start("cl_npctool_spawner_ppoint")
+	net.Start("cl_npc_spawner_ppoint")
 		net.WriteVector(tr.HitPos)
 	net.Send(self:GetOwner())
 	return true
@@ -831,6 +831,6 @@ end
 
 function TOOL:Holster()
 	if(CLIENT) then return end
-	net.Start("npctool_spawner_holster")
+	net.Start("npc_spawner_holster")
 	net.Send(self:GetOwner())
 end

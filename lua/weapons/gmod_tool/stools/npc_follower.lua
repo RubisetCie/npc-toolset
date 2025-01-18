@@ -1,19 +1,19 @@
 TOOL.Category = "NPC Control"
-TOOL.Name = "#tool.npctool_follower.name"
+TOOL.Name = "#tool.npc_follower.name"
 TOOL.Command = nil
 TOOL.ConfigName = ""
 
 if(CLIENT) then
-	language.Add("tool.npctool_follower.name","NPC Follower")
-	language.Add("tool.npctool_follower.desc","Make a NPC follow an entity.")
-	language.Add("tool.npctool_follower.0","Left-Click to select a NPC, Right-Click to make all selected NPCs follow a target, Reload to make them follow yourself.")
+	language.Add("tool.npc_follower.name","NPC Follower")
+	language.Add("tool.npc_follower.desc","Make a NPC follow an entity.")
+	language.Add("tool.npc_follower.0","Left-Click to select a NPC, Right-Click to make all selected NPCs follow a target, Reload to make them follow yourself.")
 
 	function TOOL.BuildCPanel(pnl)
-		pnl:Help("#tool.npctool_follower.0")
+		pnl:Help("#tool.npc_follower.0")
 	end
 
 	local tbEntsSelected = {}
-	net.Receive("npctool_follower_select",function(len)
+	net.Receive("npc_follower_select",function(len)
 		local ent = net.ReadEntity()
 		if(!ent:IsValid()) then return end
 		local bSelected = net.ReadUInt(1) == 1
@@ -33,7 +33,7 @@ if(CLIENT) then
 		end
 	end)
 
-	net.Receive("npctool_follower_start",function(len)
+	net.Receive("npc_follower_start",function(len)
 		local num = net.ReadUInt(8)
 		local bLocal = net.ReadUInt(1) == 1
 		if(bLocal) then
@@ -47,7 +47,7 @@ if(CLIENT) then
 		else notification.AddLegacy(num .. " NPCs are now following " .. language.GetPhrase("#" .. ent:GetClass()) .. ".",0,8) end
 	end)
 
-	net.Receive("npctool_follower_deploy",function(len)
+	net.Receive("npc_follower_deploy",function(len)
 		for _,ent in ipairs(tbEntsSelected) do
 			if(ent:IsValid()) then
 				ParticleEffectAttach("plate_green",PATTACH_ABSORIGIN_FOLLOW,ent,0)
@@ -55,18 +55,18 @@ if(CLIENT) then
 		end
 	end)
 
-	net.Receive("npctool_follower_holster",function(len)
+	net.Receive("npc_follower_holster",function(len)
 		for _,ent in ipairs(tbEntsSelected) do
 			if(ent:IsValid()) then ent:StopParticles() end
 		end
 	end)
 else
-	util.AddNetworkString("npctool_follower_select")
-	util.AddNetworkString("npctool_follower_start")
-	util.AddNetworkString("npctool_follower_holster")
-	util.AddNetworkString("npctool_follower_deploy")
+	util.AddNetworkString("npc_follower_select")
+	util.AddNetworkString("npc_follower_start")
+	util.AddNetworkString("npc_follower_holster")
+	util.AddNetworkString("npc_follower_deploy")
 	function TOOL:Deploy()
-		net.Start("npctool_follower_deploy")
+		net.Start("npc_follower_deploy")
 		net.Send(self:GetOwner())
 	end
 end
@@ -74,7 +74,7 @@ end
 function TOOL:StartFollowing(src,tgt)
 	self:StopFollowing(src)
 	self.m_tbDisp = self.m_tbDisp || {}
-	local hk = "npctool_follower" .. src:EntIndex() .. tgt:EntIndex()
+	local hk = "npc_follower" .. src:EntIndex() .. tgt:EntIndex()
 	self.m_tbDisp[src] = self.m_tbDisp[src] || {}
 	self.m_tbDisp[src][tgt] = src:Disposition(tgt)
 	if(tgt:IsNPC()) then
@@ -110,7 +110,7 @@ function TOOL:StopFollowing(src)
 	if(!self.m_tbDisp[src]) then return end
 	for tgt,disp in pairs(self.m_tbDisp[src]) do
 		if(tgt:IsValid()) then
-			hook.Remove("Think","npctool_follower" .. src:EntIndex() .. tgt:EntIndex())
+			hook.Remove("Think","npc_follower" .. src:EntIndex() .. tgt:EntIndex())
 			src:AddEntityRelationship(tgt,disp,100)
 			self.m_tbDisp[src][tgt] = nil
 			if(!tgt:IsPlayer()) then
@@ -125,7 +125,7 @@ end
 
 function TOOL:Holster()
 	if(CLIENT) then return end
-	net.Start("npctool_follower_holster")
+	net.Start("npc_follower_holster")
 	net.Send(self:GetOwner())
 end
 
@@ -144,7 +144,7 @@ function TOOL:LeftClick(tr)
 		if(!bExists) then
 			table.insert(self.m_tbNPCs,tr.Entity)
 		end
-		net.Start("npctool_follower_select")
+		net.Start("npc_follower_select")
 			net.WriteEntity(tr.Entity)
 			net.WriteUInt(bExists && 0 || 1,1)
 		net.Send(self:GetOwner())
@@ -165,7 +165,7 @@ function TOOL:RightClick(tr)
 		end
 	end
 	if(num > 0) then
-		net.Start("npctool_follower_start")
+		net.Start("npc_follower_start")
 			net.WriteUInt(num,8)
 			net.WriteUInt(0,1)
 			net.WriteEntity(tr.Entity)
@@ -186,7 +186,7 @@ function TOOL:Reload()
 		end
 	end
 	if(num > 0) then
-		net.Start("npctool_follower_start")
+		net.Start("npc_follower_start")
 			net.WriteUInt(num,8)
 			net.WriteUInt(1,1)
 		net.Send(self:GetOwner())

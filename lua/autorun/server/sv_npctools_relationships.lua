@@ -1,8 +1,8 @@
-util.AddNetworkString("npctool_relman_add")
-util.AddNetworkString("npctool_relman_rem")
-util.AddNetworkString("npctool_relman_up")
-util.AddNetworkString("npctool_relman_en")
-util.AddNetworkString("npctool_relman_clr")
+util.AddNetworkString("npc_relman_add")
+util.AddNetworkString("npc_relman_rem")
+util.AddNetworkString("npc_relman_up")
+util.AddNetworkString("npc_relman_en")
+util.AddNetworkString("npc_relman_clr")
 
 local tRels = {}
 local enabled = true
@@ -28,7 +28,7 @@ local function ApplyRelationship(src,tgt,disp)
 		end
 	end
 end
-hook.Add("OnEntityCreated","npctool_relman_apply",function(ent)
+hook.Add("OnEntityCreated","npc_relman_apply",function(ent)
 	if(enabled && ent:IsValid() && ent:IsNPC()) then
 		timer.Simple(0.1,function()
 			if(ent:IsValid()) then
@@ -69,28 +69,28 @@ local function RestoreRelationships(src,tgt)
 	end
 end
 
-net.Receive("npctool_relman_add",function(len,pl)
+net.Receive("npc_relman_add",function(len,pl)
 	local src = net.ReadString()
 	local tgt = net.ReadString()
 	local disp = net.ReadUInt(3)
 	tRels[src] = tRels[src] || {}
 	tRels[src][tgt] = disp
-	enabled = pl:GetInfoNum("npctool_relman_enabled",1) != 0
+	enabled = pl:GetInfoNum("npc_relman_enabled",1) != 0
 	if(enabled) then ApplyRelationship(src,tgt,disp) end
 end)
 
-net.Receive("npctool_relman_rem",function(len,pl)
+net.Receive("npc_relman_rem",function(len,pl)
 	local src = net.ReadString()
 	local tgt = net.ReadString()
 	if(tRels[src]) then
 		tRels[src][tgt] = nil
 	end
-	enabled = pl:GetInfoNum("npctool_relman_enabled",1) != 0
+	enabled = pl:GetInfoNum("npc_relman_enabled",1) != 0
 	if(enabled) then RestoreRelationships(src,tgt) end
 end)
 
 local function ClearRelationships(pl)
-	enabled = pl:GetInfoNum("npctool_relman_enabled",1) != 0
+	enabled = pl:GetInfoNum("npc_relman_enabled",1) != 0
 	if(enabled) then
 		for src,rels in pairs(tRels) do
 			for tgt,disp in pairs(rels) do
@@ -101,11 +101,11 @@ local function ClearRelationships(pl)
 	tRels = {}
 end
 
-net.Receive("npctool_relman_up",function(len,pl)
-	if !pl:HasWeapon("gmod_tool") or pl:GetWeapon("gmod_tool").Mode != "npctool_relationships" then return end
+net.Receive("npc_relman_up",function(len,pl)
+	if !pl:HasWeapon("gmod_tool") or pl:GetWeapon("gmod_tool").Mode != "npc_relationships" then return end
 	ClearRelationships(pl)
 	local numRels = net.ReadUInt(12)
-	enabled = pl:GetInfoNum("npctool_relman_enabled",1) != 0
+	enabled = pl:GetInfoNum("npc_relman_enabled",1) != 0
 	for i = 1,numRels do
 		local src = net.ReadString()
 		local numTgts = net.ReadUInt(12)
@@ -119,7 +119,7 @@ net.Receive("npctool_relman_up",function(len,pl)
 	end
 end)
 
-net.Receive("npctool_relman_en",function(len,pl)
+net.Receive("npc_relman_en",function(len,pl)
 	enabled = net.ReadUInt(1) == 1
 	if(!enabled) then
 		for src,rels in pairs(tRels) do
@@ -136,6 +136,6 @@ net.Receive("npctool_relman_en",function(len,pl)
 	end
 end)
 
-net.Receive("npctool_relman_clr",function(len,pl)
+net.Receive("npc_relman_clr",function(len,pl)
 	ClearRelationships(pl)
 end)

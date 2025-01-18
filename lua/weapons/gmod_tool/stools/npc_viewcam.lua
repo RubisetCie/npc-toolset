@@ -1,15 +1,15 @@
 TOOL.Category = "NPC Control"
-TOOL.Name = "#tool.npctool_viewcam.name"
+TOOL.Name = "#tool.npc_viewcam.name"
 TOOL.Command = nil
 TOOL.ConfigName = ""
 
 if(CLIENT) then
-	language.Add("tool.npctool_viewcam.name","NPC Viewcam")
-	language.Add("tool.npctool_viewcam.desc","Create a camera attached to a NPC.")
-	language.Add("tool.npctool_viewcam.0","Left-Click on a NPC to enter camera mode. Use key to end camera mode.")
+	language.Add("tool.npc_viewcam.name","NPC Viewcam")
+	language.Add("tool.npc_viewcam.desc","Create a camera attached to a NPC.")
+	language.Add("tool.npc_viewcam.0","Left-Click on a NPC to enter camera mode. Use key to end camera mode.")
 
 	function TOOL.BuildCPanel(pnl)
-		pnl:Help("#tool.npctool_viewcam.0")
+		pnl:Help("#tool.npc_viewcam.0")
 	end
 end
 

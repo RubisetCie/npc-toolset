@@ -1,5 +1,5 @@
 TOOL.Category = "NPC Control"
-TOOL.Name = "#tool.npctool_health.name"
+TOOL.Name = "#tool.npc_health.name"
 TOOL.Command = nil
 TOOL.ConfigName = ""
 
@@ -7,21 +7,21 @@ if(CLIENT) then
 	TOOL.ClientConVar["health"] = "100"
 	TOOL.ClientConVar["invincible"] = 0
 
-	language.Add("tool.npctool_health.name","NPC Health")
-	language.Add("tool.npctool_health.desc","Change a NPC's health")
-	language.Add("tool.npctool_health.0","Left-Click to change the health of a NPC to the set value.")
+	language.Add("tool.npc_health.name","NPC Health")
+	language.Add("tool.npc_health.desc","Change a NPC's health")
+	language.Add("tool.npc_health.0","Left-Click to change the health of a NPC to the set value.")
 
 	function TOOL.BuildCPanel(pnl)
-		pnl:Help("#tool.npctool_health.0")
-		pnl:CheckBox("Invincible","npctool_health_invincible")
-		pnl:NumSlider("Health","npctool_health_health",1,5000,0)
+		pnl:Help("#tool.npc_health.0")
+		pnl:CheckBox("Invincible","npc_health_invincible")
+		pnl:NumSlider("Health","npc_health_health",1,5000,0)
 	end
 
-	net.Receive("npctool_health_set",function(len)
+	net.Receive("npc_health_set",function(len)
 		local ent = net.ReadEntity()
 		if(!ent:IsValid()) then return end
-		local cvHealth = GetConVar("npctool_health_health")
-		local cvInvincible = GetConVar("npctool_health_invincible")
+		local cvHealth = GetConVar("npc_health_health")
+		local cvInvincible = GetConVar("npc_health_invincible")
 		local bWasInvincible = net.ReadUInt(1) != 0
 		local hp = cvHealth:GetInt()
 		local bInvincible = cvInvincible:GetBool()
@@ -35,12 +35,12 @@ if(CLIENT) then
 	end)
 	function TOOL:LeftClick(tr) return true end
 else
-	util.AddNetworkString("npctool_health_set")
+	util.AddNetworkString("npc_health_set")
 	local tbEntsInvincible = {}
 	function TOOL:LeftClick(tr)
 		if(tr.Entity:IsValid() && tr.Entity:IsNPC()) then
 			tr.Entity:SetHealth(self:GetClientNumber("health"))
-			net.Start("npctool_health_set")
+			net.Start("npc_health_set")
 			net.WriteEntity(tr.Entity)
 				if(self:GetClientNumber("invincible") != 0) then
 					if(tr.Entity.bScripted) then
@@ -50,7 +50,7 @@ else
 					elseif(!table.HasValue(tbEntsInvincible,tr.Entity)) then
 						table.insert(tbEntsInvincible,tr.Entity)
 						local idx = tr.Entity:EntIndex()
-						local hk = "npctool_health_invincible" .. idx
+						local hk = "npc_health_invincible" .. idx
 						hook.Add("EntityTakeDamage",hk,function(npc,dmginfo)
 							if(!tr.Entity:IsValid()) then hook.Remove("EntityTakeDamage",hk)
 							elseif(npc == tr.Entity) then dmginfo:SetDamage(0) end
@@ -69,7 +69,7 @@ else
 								break
 							end
 						end
-						hook.Remove("EntityTakeDamage","npctool_health_invincible" .. tr.Entity:EntIndex())
+						hook.Remove("EntityTakeDamage","npc_health_invincible" .. tr.Entity:EntIndex())
 					else net.WriteUInt(0,1) end
 				end
 			net.Send(self:GetOwner())
