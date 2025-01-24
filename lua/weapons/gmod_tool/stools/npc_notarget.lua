@@ -4,7 +4,7 @@ TOOL.Command = nil
 TOOL.ConfigName = ""
 
 if(CLIENT) then
-	language.Add("tool.npc_notarget.name","No Target")
+	language.Add("tool.npc_notarget.name","NPC No Target")
 	language.Add("tool.npc_notarget.desc","Enable/Disable notarget for a NPC or yourself")
 	language.Add("tool.npc_notarget.0","Left-Click to enable/disable notarget for the NPC you're looking at. Right click to enable/disable notarget for yourself.")
 
