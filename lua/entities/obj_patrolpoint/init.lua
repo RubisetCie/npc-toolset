@@ -5,6 +5,9 @@ include('shared.lua')
 AccessorFunc(ENT,"m_bWalk","Walk",FORCE_BOOL)
 AccessorFunc(ENT,"m_type","Type",FORCE_NUMBER)
 AccessorFunc(ENT,"m_bStrict","StrictMovement",FORCE_BOOL)
+
+local IsValid = IsValid
+
 function ENT:Initialize()
 	self:DrawShadow(false)
 	self:SetNoDraw(true)
@@ -65,7 +68,7 @@ function ENT:Think()
 		local ent = self.m_tbNPCs[i]
 		if(!ent:IsValid() || ent:Health() <= 0) then table.remove(self.m_tbNPCs,i)
 		elseif((ent.GetState && ent:GetState() || ent:GetNPCState()) <= NPC_STATE_ALERT || self:GetStrictMovement()) then
-			local posEnt = ent:NearestPoint(pos +ent:OBBCenter())
+			local posEnt = ent:NearestPoint(pos+ent:OBBCenter())
 			local dist = pos:Distance(posEnt)
 			if(dist <= 120) then
 				local pPointNext = self.m_nextPoint

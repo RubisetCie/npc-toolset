@@ -3,6 +3,12 @@ local D_FR = 2
 local D_LI = 3
 local D_NU = 4
 
+local file = file
+local draw = draw
+local surface = surface
+local net = net
+local vgui = vgui
+
 CreateClientConVar("npc_relman_enabled",1,true,true)
 local cvOnMapSpawn = CreateClientConVar("npc_relman_mapspawn","",true)
 local cvSel = CreateClientConVar("npc_relman_select","")

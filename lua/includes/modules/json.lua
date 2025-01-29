@@ -64,7 +64,6 @@ local setmetatable = setmetatable
 local pairs = pairs
 local ipairs = ipairs
 local assert = assert
-local Chipmunk = Chipmunk
 
 module("Json")
 

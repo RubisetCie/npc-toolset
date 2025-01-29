@@ -19,6 +19,9 @@ function EFFECT:Think()
 end
 
 local colText = Color(255,255,255,255)
+local cam = cam
+local draw = draw
+local LocalPlayer = LocalPlayer
 function EFFECT:Render()
 	if(!self.m_bVisible) then return end
 	self:DrawModel()

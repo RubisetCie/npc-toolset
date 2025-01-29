@@ -2,6 +2,8 @@ AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("shared.lua")
 include('shared.lua')
 
+local IsValid = IsValid
+
 function ENT:Initialize()
 	self:SetNotSolid(true)
 	self:DrawShadow(false)

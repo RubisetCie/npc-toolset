@@ -11,6 +11,9 @@ numpad.Register("npc_spawner_turnoff",function(pl,ent,pID)
 	ent:SetEnabled(false)
 end)
 
+local IsValid = IsValid
+local CurTime = CurTime
+
 AccessorFunc(ENT,"m_class","NPCClass",FORCE_STRING)
 AccessorFunc(ENT,"m_squad","Squad",FORCE_STRING)
 AccessorFunc(ENT,"m_equipment","NPCEquipment",FORCE_STRING)
