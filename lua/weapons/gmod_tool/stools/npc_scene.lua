@@ -285,7 +285,7 @@ local function ListScenes()
 		ctrl:SetPadding(5)
 		ctrl:SetSize(width,height-25)
 		ctrl:SetPos(0,25)
-		ctrl:SetBackgroundColor(Color(255,255,255,255))
+		ctrl:SetBackgroundColor(color_white)
 
 		local node = ctrl:AddNode("Scenes (click one to select)")
 		local premadeSceneList = NPCS:BuildPremandeSceneList()

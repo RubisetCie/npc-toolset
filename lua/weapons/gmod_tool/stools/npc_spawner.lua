@@ -73,7 +73,7 @@ if(CLIENT) then
 		local eClosest
 		local distClosest = math.huge
 		for _,e in ipairs(tbPPEffects) do
-			local hit,norm = util.IntersectRayWithOBB(pos,dir *32768,e:GetPos(),Angle(0,0,0),e:GetRenderBounds())
+			local hit,norm = util.IntersectRayWithOBB(pos,dir *32768,e:GetPos(),angle_zero,e:GetRenderBounds())
 			if(hit) then
 				local d = e:GetPos():Distance(pos)
 				if(d < distClosest) then
@@ -95,9 +95,9 @@ if(CLIENT) then
 			tbPPEffects[_]:SetID(_)
 		end
 		local offset = Vector(0,0,6)
-		local col = Color(255,255,255,255)
+		local col = color_white
 		local cv = GetConVar("npc_spawner_patroltype")
-		local colDefault = Color(255,255,255,255)
+		local colDefault = color_white
 		local colSelected = Color(255,0,0,255)
 		hook.Add("RenderScreenspaceEffects","npc_spawner_renderppoints",function()
 			cam.Start3D(EyePos(),EyeAngles())

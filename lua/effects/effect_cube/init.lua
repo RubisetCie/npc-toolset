@@ -18,7 +18,7 @@ function EFFECT:Think()
 	return !self.m_bRemove
 end
 
-local colText = Color(255,255,255,255)
+local colText = color_white
 local cam = cam
 local draw = draw
 local LocalPlayer = LocalPlayer

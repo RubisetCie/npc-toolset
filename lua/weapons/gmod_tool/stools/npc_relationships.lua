@@ -16,7 +16,7 @@ if(CLIENT) then
 	function TOOL.BuildCPanel(pnl)
 		pnl:Help("#tool.npc_relationships.0")
 		local lbl = vgui.Create("DLabel",pnl)
-		lbl:SetColor(Color(0,0,0,255))
+		lbl:SetColor(color_black)
 		lbl:SetText("Disposition:")
 
 		local pCBox = vgui.Create("DComboBox",pnl)

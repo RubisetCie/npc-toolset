@@ -253,7 +253,7 @@ UpdateMenu = function()
 	l:SetText("Preset to load on map spawn:")
 	l:SetPos(0,0)
 	l:SizeToContents()
-	l:SetColor(Color(0,0,0))
+	l:SetColor(color_black)
 
 	local pCBoxMap = vgui.Create("DComboBox",p)
 	local map = cvOnMapSpawn:GetString()
