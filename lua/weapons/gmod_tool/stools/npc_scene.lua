@@ -4,9 +4,10 @@ TOOL.Command = nil
 TOOL.ConfigName = ""
 TOOL.ClientConVar["scene"] = "scenes/npc/Gman/gman_intro"
 TOOL.ClientConVar["actor"] = "Alyx"
+TOOL.ClientConVar["remove_actor_name_on_reload"] = 0
 TOOL.ClientConVar["loop"] = 0
 TOOL.ClientConVar["key"] = 0
-TOOL.ClientConVar["start"] = 0
+TOOL.ClientConVar["start"] = 1
 TOOL.ClientConVar["multiple"] = 0
 TOOL.ClientConVar["render"] = 1
 TOOL.Information = {
@@ -137,11 +138,18 @@ function NPCS:PlayScene(ply,index)
 end
 
 -- Remove our modifications from the npc
-function NPCS:ReloadNPC(ply,npc,removeName)
+function NPCS:ReloadNPC(ply,npc,removeActorName)
 	if CLIENT then return end
 
+	local scenePath = npc:GetNWString("npcscene_path")
+	local actorName = not removeActorName and npc:GetNWString("npcscene_actor")
+
+	if removeActorName and actorName != "" then
+	elseif scenePath == "" then
+		return npc
+	end
+
 	local dup = {}
-	local name = not removeName and npc:GetNWString("npcscene_actor")
 
 	-- Change the entity
 	local newNpc = duplicator.CreateEntityFromTable(ply,duplicator.CopyEntTable(npc))
@@ -154,17 +162,21 @@ function NPCS:ReloadNPC(ply,npc,removeName)
 	undo.Finish()
 
 	-- Reapply the name
-	if name then
+	if actorName then
 		local sceneData = {
 			index = newNpc:EntIndex(),
-			actor = name
+			actor = actorName
 		}
-		newNpc:SetName(name)
+
+		newNpc:SetName(actorName)
+
 		self:SetNWVars(newNpc, sceneData)
-		timer.Simple(0.5,function()
+
+		timer.Simple(0.5, function()
 			if not IsValid(ply) then return end
+
 			net.Start("npc_scene_render_actor")
-			net.WriteInt(sceneData.index,16)
+				net.WriteInt(sceneData.index, 16)
 			net.Send(ply)
 		end)
 	end
@@ -257,11 +269,21 @@ end
 -- Build a scene list checking for mounted games and using our pre-made scene tables
 function NPCS:BuildPremandeSceneList()
 	local premadeSceneList = {}
-	for _,game in ipairs(engine.GetGames()) do
-		if game.mounted and self.premadeSceneList[game.title] or game.title == "Half-Life 2" then
-			table.Merge(premadeSceneList,self.premadeSceneList[game.title])
+
+	table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2"])
+
+	for _, game in ipairs(engine.GetGames()) do
+		if game.mounted then
+			if game.title == "Half-Life 2 & Episodes" then
+				table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 2"])
+				table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 1"])
+				table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Lost Coast"]) -- Not sure if it's included in the HL Anniversary update
+			elseif self.premadeSceneList[game.title] then
+				table.Merge(premadeSceneList, self.premadeSceneList[game.title])
+			end
 		end
 	end
+
 	return premadeSceneList
 end
 
@@ -378,11 +400,17 @@ function TOOL:RightClick(tr)
 
 	local ply = self:GetOwner()    
 	local npc = tr.Entity
+    local oldName = npc:GetNWString("npcscene_actor")
+    local newName = self:GetClientInfo("actor")
+
+	if oldName == newName then
+		return false
+	end
 
 	-- Add the name to the entity
 	local sceneData = {
 		index = npc:GetNWInt("npcscene_index") == 0 and npc:EntIndex() or nil,
-		actor = self:GetClientInfo("actor")
+		actor = newName
 	}
 
 	npc:SetName(sceneData.actor)
@@ -406,9 +434,15 @@ function TOOL:Reload(tr)
 	-- Stop any loops and reload the NPC
 	if npc:GetNWInt("npcscene_index") > 0 then
 		if SERVER then
-			timer.Stop(tostring(npc)..npc:GetNWInt("npcscene_index"))
-			NPCS:ReloadNPC(ply,npc,true)
+			local keepActorName = GetConVar("npc_scene_remove_actor_name_on_reload"):GetBool()
+			timer.Stop(tostring(npc) .. npc:GetNWInt("npcscene_index"))
+			newNpc = NPCS:ReloadNPC(ply, npc, keepActorName)
+
+			if npc == newNpc then
+				return false
+			end
 		end
+
 		return true
 	else
 		return false
@@ -430,6 +464,7 @@ function TOOL.BuildCPanel(CPanel)
 	CPanel:CheckBox("Allow Multiple Times","npc_scene_multiple")
 	CPanel:CheckBox("Start On (When using a key)","npc_scene_start")
 	CPanel:CheckBox("Render Actor Names","npc_scene_render")
+	CPanel:CheckBox("Remove Actor Name on Reload","npc_scene_remove_actor_name_on_reload")
 	CPanel:Help("Scene Management")
 	CPanel:Button("List Scenes","npc_scene_list")
 end
