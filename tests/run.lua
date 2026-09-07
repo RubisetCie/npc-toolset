@@ -21,6 +21,7 @@ local suites = {
     "delay",
     "reload",
     "network",
+    "paths",
     "ui",
     "discovery"
 }

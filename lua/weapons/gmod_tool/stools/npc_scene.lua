@@ -472,7 +472,8 @@ function TOOL:LeftClick(tr)
 
     local ply = self:GetOwner()
     local npc = tr.Entity
-    local path  = string.gsub(self:GetClientInfo("scene"), ".vcd", "")
+    local path = string.gsub(string.Trim(self:GetClientInfo("scene")), "%.[vV][cC][dD]$", "")
+    if path == "" then return false end
     local actor
     local multiple = self:GetClientNumber("multiple") == 1 and true or false
 
@@ -480,9 +481,7 @@ function TOOL:LeftClick(tr)
     if npc:GetNWInt("npcscene_index") > 0 then
         -- Apply the scene on top scene if it's configured to do so
         if multiple and npc:GetNWString("npcscene_path") == path then
-            NPCS:PlayScene(ply, npc:GetNWInt("npcscene_index"))
-
-            return true
+            return NPCS:PlayScene(ply, npc:EntIndex())
         end
 
         -- Get the actor name if there's one
@@ -524,7 +523,7 @@ function TOOL:LeftClick(tr)
     
     -- Play the scene
     if sceneData.start or sceneData.key == 0 then
-        NPCS:PlayScene(ply, sceneData.index)
+        return NPCS:PlayScene(ply, sceneData.index)
     end
 
     return true
@@ -546,7 +545,7 @@ function TOOL:RightClick(tr)
 
     -- Add the name to the entity
     local sceneData = {
-        index = npc:GetNWInt("npcscene_index") == 0 and npc:EntIndex() or nil,
+        index = npc:EntIndex(),
         actor = newName
     }
 
@@ -556,7 +555,7 @@ function TOOL:RightClick(tr)
 
     -- Render the name on the client
     net.Start("npc_scene_render_actor")
-        net.WriteInt(sceneData.index or npc:GetNWInt("npcscene_index"), 16)
+        net.WriteInt(sceneData.index, 16)
     net.Send(ply)
 
     return true
