@@ -1,30 +1,27 @@
 AddCSLuaFile()
 
-NPCS = {
-    premadeSceneList = {}
-}
+NPCS = NPCS or {}
+NPCS.premadeSceneList = NPCS.premadeSceneList or {}
 
 local function includeLibs(dir, isClientLib)
     local files, dirs = file.Find( dir.."*", "LUA" )
 
-    if not dirs then return end
-
-    for _, fdir in pairs(dirs) do
+    for _, fdir in pairs(dirs or {}) do
         includeLibs(dir .. fdir .. "/", isClientLib)
     end
 
-    for k,v in pairs(files) do
-        if SERVER and isClientLib then
-            AddCSLuaFile(dir .. v)
-        else
-            include(dir .. v)
+    for k,v in pairs(files or {}) do
+        if v:match("%.lua$") then
+            if SERVER and isClientLib then
+                AddCSLuaFile(dir .. v)
+            else
+                include(dir .. v)
+            end
         end
     end 
 end
 
 NPCS.folder = { lua = "npcscene/" }
 
-if SERVER then
-    includeLibs(NPCS.folder.lua)
-end
-includeLibs(NPCS.folder.lua, true)
+-- Catalogs are client-only; the server only needs to distribute their files.
+includeLibs(NPCS.folder.lua .. "client/", true)

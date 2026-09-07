@@ -23,7 +23,8 @@ local suites = {
     "network",
     "paths",
     "ui",
-    "discovery"
+    "discovery",
+    "init"
 }
 for _, suite in ipairs(suites) do
     local path = "tests/test_" .. suite .. ".lua"
