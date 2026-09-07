@@ -506,11 +506,6 @@ function TOOL:LeftClick(tr)
 
     -- Checks if there's a scene applied
     if npc:GetNWInt("npcscene_index") > 0 then
-        -- Apply the scene on top scene if it's configured to do so
-        if multiple and npc:GetNWString("npcscene_path") == path then
-            return NPCS:PlayScene(ply, npc:EntIndex())
-        end
-
         -- Get the actor name if there's one
         if npc:GetNWString("npcscene_actor") ~= "" then
             actor = npc:GetNWString("npcscene_actor")

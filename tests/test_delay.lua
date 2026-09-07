@@ -96,3 +96,35 @@ test("tool panel exposes a two-decimal delay slider", function()
     equal(panel.controls[1][4], 60)
     equal(panel.controls[1][5], 2)
 end)
+
+test("overlapping tool clicks apply the current delay without changing older runs", function()
+    local tool, player, npc = M.loadTool()
+    player.info.npc_scene_multiple = "1"
+    player.info.npc_scene_scene = "scenes/test"
+    player.info.npc_scene_loop = "1"
+    player.info.npc_scene_loop_delay = "1"
+    equal(tool:LeftClick({Hit = true, Entity = npc}), true)
+    M.advance(1)
+    player.info.npc_scene_loop_delay = "4"
+    equal(tool:LeftClick({Hit = true, Entity = npc}), true)
+    equal(npc:GetNWFloat("npcscene_loop_delay"), 4)
+    M.advance(2)
+    equal(#npc.plays, 3)
+    equal(npc.plays[3].at, 3, "older run retains its one-second pause")
+    M.advance(4)
+    equal(#npc.plays, 4)
+    equal(npc.plays[4].at, 7, "newer run uses its four-second pause")
+    M.advance(2)
+    equal(npc:GetNWBool("npcscene_active"), false)
+end)
+
+test("same-scene multiple mode still honors Start On when configuring a key", function()
+    local tool, player, npc = M.loadTool()
+    player.info.npc_scene_multiple = "1"
+    player.info.npc_scene_scene = "scenes/test"
+    player.info.npc_scene_key = "12"
+    player.info.npc_scene_start = "0"
+    equal(tool:LeftClick({Hit = true, Entity = npc}), true)
+    equal(#npc.plays, 0)
+    equal(npc.NPCSceneKeyOwner, player)
+end)
