@@ -211,19 +211,25 @@ end
 function NPCS:ReloadNPC(ply, npc, removeActorName)
     if CLIENT then return end
 
+    if not IsValid(ply) or not IsValid(npc) or npc:IsPlayer() or npc:IsWorld() then return npc end
+
     local scenePath = npc:GetNWString("npcscene_path")
-    local actorName = not removeActorName and npc:GetNWString("npcscene_actor")
+    local actorName = npc:GetNWString("npcscene_actor")
 
-    if removeActorName and actorName != "" then
-    elseif scenePath == "" then
-        return npc
-    end
+    if scenePath == "" and (not removeActorName or actorName == "") then return npc end
 
-    local dup = {}
+    -- Do not delete or interrupt the original if duplication fails.
+    local data = duplicator.CopyEntTable(npc)
+    if not istable(data) then return npc end
+    local newNpc = duplicator.CreateEntityFromTable(ply, data)
+    if not IsValid(newNpc) then return npc end
 
-    -- Change the entity
-    local newNpc = duplicator.CreateEntityFromTable(ply, duplicator.CopyEntTable(npc))
+    self:StopSceneTimers(npc)
     SafeRemoveEntity(npc)
+    self:SetNWVars(newNpc, {
+        active = false, index = 0, loop = 0, loop_delay = 0, path = "", actor = "", key = 0
+    })
+    if removeActorName then newNpc:SetName("") end
 
     -- Add undo
     undo.Create("NPC")
@@ -232,7 +238,7 @@ function NPCS:ReloadNPC(ply, npc, removeActorName)
     undo.Finish()
 
     -- Reapply the name
-    if actorName then
+    if not removeActorName and actorName ~= "" then
         local sceneData = {
             index = newNpc:EntIndex(),
             actor = actorName
@@ -243,7 +249,7 @@ function NPCS:ReloadNPC(ply, npc, removeActorName)
         self:SetNWVars(newNpc, sceneData)
 
         timer.Simple(0.5, function()
-            if not IsValid(ply) then return end
+            if not IsValid(ply) or not IsValid(newNpc) then return end
 
             net.Start("npc_scene_render_actor")
                 net.WriteInt(sceneData.index, 16)
@@ -426,7 +432,9 @@ end
 
 local function toolGunChecks(tr, anyEnt)
     -- Check if we're modifying a NPC
-    if not (tr.Hit and tr.Entity and tr.Entity:IsValid() and (anyEnt or tr.Entity:IsNPC())) then
+    if not (tr.Hit and not tr.HitWorld and IsValid(tr.Entity)
+        and not tr.Entity:IsPlayer() and not tr.Entity:IsWorld()
+        and (anyEnt or tr.Entity:IsNPC())) then
         return false
     end
 
@@ -460,8 +468,9 @@ function TOOL:LeftClick(tr)
 
         -- Reload the scenes by deleting the loops and reloading the NPCs
         if npc:GetNWBool("npcscene_active") and not multiple then
-            NPCS:StopSceneTimers(npc)
-            npc = NPCS:ReloadNPC(ply, npc)
+            local newNpc = NPCS:ReloadNPC(ply, npc)
+            if not IsValid(newNpc) or newNpc == npc then return false end
+            npc = newNpc
         end
     end
 
@@ -536,9 +545,8 @@ function TOOL:Reload(tr)
     -- Stop any loops and reload the NPC
     if npc:GetNWInt("npcscene_index") > 0 then
         if SERVER then
-            local keepActorName = GetConVar("npc_scene_remove_actor_name_on_reload"):GetBool()
-            NPCS:StopSceneTimers(npc)
-            newNpc = NPCS:ReloadNPC(ply, npc, keepActorName)
+            local removeActorName = self:GetClientNumber("remove_actor_name_on_reload") == 1
+            local newNpc = NPCS:ReloadNPC(ply, npc, removeActorName)
 
             if npc == newNpc then
                 return false

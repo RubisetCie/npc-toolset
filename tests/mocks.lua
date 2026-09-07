@@ -22,6 +22,7 @@ function M.reset(client)
     M.includeCalls, M.downloads = {}, {}
     M.convars = { npc_scene_render = true }
     M.commands = {}
+    M.lastClone, M.keyboardFocus = nil, nil
 
     function IsValid(value) return type(value) == "table" and value.valid == true end
     function isnumber(value) return type(value) == "number" end
