@@ -288,20 +288,27 @@ end
 function NPCS:RenderActorName(index)
     if SERVER then return end
 
-    local npc = ents.GetByIndex(index)
-
-    if not npc then return end
-
-    local hookName = "NPCScene_ActorName" .. tostring(npc) .. math.random(1, 999)
+    local npc
+    local expires = RealTime() + 5
+    local hookName = "NPCScene_ActorName" .. index
 
     hook.Add("HUDPaint", hookName, function()
-        if not npc:IsValid() then return hook.Remove("HUDPaint", hookName) end
+        if not npc then
+            local candidate = ents.GetByIndex(index)
+            if not IsValid(candidate) then
+                if RealTime() >= expires then hook.Remove("HUDPaint", hookName) end
+                return
+            end
+            npc = candidate
+        end
+        if not IsValid(npc) then return hook.Remove("HUDPaint", hookName) end
 
-        if GetConVar("npc_scene_render"):GetBool() then
+        local renderNames = GetConVar("npc_scene_render")
+        if renderNames and renderNames:GetBool() and IsValid(LocalPlayer()) then
             -- Actor name
             local actorName = npc:GetNWString("npcscene_actor")
 
-            if not actorName then return end
+            if actorName == "" then return end
 
             -- Distance
             local distance = LocalPlayer():GetPos():Distance(npc:GetPos())
@@ -310,10 +317,12 @@ function NPCS:RenderActorName(index)
 
             local head = npc:LookupBone("ValveBiped.Bip01_Head1")
             local up = Vector(0, 0, 17 * distance/300)
+            local drawposscreen
 
             -- NPCs
             if head then
-                local headpos, headang = npc:GetBonePosition(head)
+                local headpos = npc:GetBonePosition(head)
+                if not headpos then return end
                 headpos = headpos + up
                 drawposscreen = (headpos + Vector(0, 0, 10)):ToScreen()
             -- Props
@@ -326,6 +335,7 @@ function NPCS:RenderActorName(index)
             end
 
             -- Draw
+            if not drawposscreen.visible then return end
             draw.DrawText(actorName, "NPCS_TargetID", drawposscreen.x, drawposscreen.y, color_white, TEXT_ALIGN_CENTER)
         end
     end)
