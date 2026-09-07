@@ -62,8 +62,18 @@ if SERVER then
     util.AddNetworkString("npc_scene_play")
     util.AddNetworkString("npc_scene_render_actor")
 
-    net.Receive("npc_scene_play", function(_, ply)
-        NPCS:PlayScene(ply, net.ReadInt(16))
+    net.Receive("npc_scene_play", function(length, ply)
+        if length ~= 16 or not IsValid(ply) or not ply:IsPlayer() then return end
+
+        local index = net.ReadInt(16)
+        local npc = ents.GetByIndex(index)
+        if not IsValid(npc) or not npc:IsNPC() then return end
+        -- A client may only trigger the key binding it configured through the tool.
+        if npc.NPCSceneKeyOwner ~= ply or npc:GetNWInt("npcscene_key") <= 0 then return end
+        if (npc.NPCSceneNextKeyPlay or 0) > CurTime() then return end
+
+        npc.NPCSceneNextKeyPlay = CurTime() + 0.1
+        NPCS:PlayScene(ply, index)
     end)
 end
     
@@ -102,24 +112,36 @@ end
 function NPCS:SetKey(index)
     if SERVER then return end
 
-    local npc = ents.GetByIndex(index)
+    local npc
     local hookName = "npc_scene" .. index
+    local expires = RealTime() + 5
+    local wasDown = false
 
-    -- Don't recreate the hook for nothing
-    if hook.GetTable()["Tick"][hookName] then
-        return
-    end
-
+    -- Replace the previous binding rather than accumulating hooks. Networked entities
+    -- and their convars can arrive after this message, so resolve them on Tick.
     hook.Add("Tick", hookName, function()
-        -- NPC is gone
-        if not npc:IsValid() then
+        if not npc then
+            local candidate = ents.GetByIndex(index)
+            if not IsValid(candidate) or candidate:GetNWInt("npcscene_key") <= 0 then
+                if RealTime() >= expires then hook.Remove("Tick", hookName) end
+                return
+            end
+            npc = candidate
+        end
+
+        if not IsValid(npc) or npc:GetNWInt("npcscene_key") <= 0 then
             hook.Remove("Tick", hookName)
-        -- Play scene
-        elseif input.IsKeyDown(npc:GetNWInt("npcscene_key")) then
+            return
+        end
+
+        local down = input.IsButtonDown(npc:GetNWInt("npcscene_key"))
+        local typing = gui.IsGameUIVisible() or IsValid(vgui.GetKeyboardFocus())
+        if down and not wasDown and not typing then
             net.Start("npc_scene_play")
                 net.WriteInt(npc:EntIndex(), 16)
             net.SendToServer()
         end
+        wasDown = down
     end)
 end
 
@@ -229,6 +251,8 @@ function NPCS:ReloadNPC(ply, npc, removeActorName)
     self:SetNWVars(newNpc, {
         active = false, index = 0, loop = 0, loop_delay = 0, path = "", actor = "", key = 0
     })
+    newNpc.NPCSceneKeyOwner = nil
+    newNpc.NPCSceneNextKeyPlay = nil
     if removeActorName then newNpc:SetName("") end
 
     -- Add undo
@@ -487,6 +511,9 @@ function TOOL:LeftClick(tr)
     }
 
     NPCS:SetNWVars(npc, sceneData)
+
+    npc.NPCSceneKeyOwner = sceneData.key ~= 0 and ply or nil
+    npc.NPCSceneNextKeyPlay = nil
 
     -- Prepare the scene to be played by key
     if sceneData.key != 0 then
