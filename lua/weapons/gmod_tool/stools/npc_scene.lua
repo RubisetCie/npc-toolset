@@ -80,9 +80,15 @@ end
 -- General
 -- --------------
 
+local function boundedNumber(value, maximum)
+    value = tonumber(value) or 0
+    if value ~= value then return 0 end -- Reject NaN from client convars.
+    return math.Clamp(value, 0, maximum)
+end
+
 -- Share the scene values between server and client
 function NPCS:SetNWVars(npc, sceneData)
-    if sceneData.active then npc:SetNWBool("npcscene_active", sceneData.active) end
+    if sceneData.active ~= nil then npc:SetNWBool("npcscene_active", sceneData.active) end
     if sceneData.index then npc:SetNWInt("npcscene_index", sceneData.index) end
     if sceneData.loop then npc:SetNWInt("npcscene_loop", sceneData.loop) end
     if sceneData.path then npc:SetNWString("npcscene_path", sceneData.path) end
@@ -115,48 +121,86 @@ function NPCS:SetKey(index)
     end)
 end
 
--- Play a scene
-function NPCS:PlayScene(ply, index)
+-- Cancel every playback sequence, including overlapping scenes.
+function NPCS:StopSceneTimers(npc)
     if CLIENT then return end
 
-    local multiple = ply:GetInfo("npc_scene_multiple") == "1" and true or false
+    local runs = self.runningScenes and self.runningScenes[npc]
+    if not runs then return end
+
+    for run in pairs(runs) do
+        if run.timer then timer.Remove(run.timer) end
+        SafeRemoveEntity(run.scene)
+        runs[run] = nil
+    end
+
+    self.runningScenes[npc] = nil
+    if IsValid(npc) then npc:SetNWBool("npcscene_active", false) end
+end
+
+-- Play a scene. Each sequence keeps its own configuration and timers.
+function NPCS:PlayScene(ply, index)
+    if CLIENT or not IsValid(ply) or not ply:IsPlayer() then return false end
+
     local npc = ents.GetByIndex(index)
+    if not IsValid(npc) or not npc:IsNPC() then return false end
 
-    -- When an animation is running only start more animations if the "multiple" checkbox is checked
-    if npc:GetNWBool("npcscene_active") and not multiple then return end
+    local path = npc:GetNWString("npcscene_path")
+    if path == "" then return false end
 
-    npc:SetNWBool("npcscene_active", true)
+    local multiple = ply:GetInfo("npc_scene_multiple") == "1"
+    if npc:GetNWBool("npcscene_active") and not multiple then return false end
 
-    -- Play the scene and get its lenght
-    local lenght = npc:PlayScene(npc:GetNWString("npcscene_path")) 
+    local remaining = math.floor(boundedNumber(npc:GetNWInt("npcscene_loop"), 100))
+    self.runningScenes = self.runningScenes or {}
+    local runs = self.runningScenes[npc] or {}
+    self.runningScenes[npc] = runs
+    self.nextSceneID = (self.nextSceneID or 0) + 1
+    local timerName = "npc_scene_" .. npc:EntIndex() .. "_" .. self.nextSceneID
+    local run = {}
+    runs[run] = true
 
-    if not lenght then return end
+    npc:CallOnRemove("npc_scene_timers", function(ent)
+        self:StopSceneTimers(ent)
+    end)
 
-    -- Set the next loops
-    if npc:GetNWInt("npcscene_loop") > 0 then
-        local index = tostring(npc) .. npc:EntIndex()
+    local function finish()
+        if run.timer then timer.Remove(run.timer) end
+        if self.runningScenes[npc] ~= runs then return end
+        runs[run] = nil
+        local active = next(runs) ~= nil
+        if not active then self.runningScenes[npc] = nil end
+        if IsValid(npc) then npc:SetNWBool("npcscene_active", active) end
+    end
 
-        timer.Create(index, lenght, npc:GetNWInt("npcscene_loop"), function()
-            -- Invalid ent, stop the loop
-            if not IsValid(npc) then
-                timer.Stop(index)
-            -- Last loop
-            elseif npc:GetNWInt("npcscene_loop") == 0 then
-                npc:SetNWBool("npcscene_active", false)
-                timer.Stop(index)
-            -- An execution in the sequence, there are more to do
+    local function play()
+        if not IsValid(npc) or not runs[run] then finish() return false end
+
+        local length, scene = npc:PlayScene(path)
+        run.scene = scene
+        if not isnumber(length) or length ~= length or length <= 0 or length == math.huge then
+            SafeRemoveEntity(scene)
+            finish()
+            return false
+        end
+
+        npc:SetNWBool("npcscene_active", true)
+        -- A different name per iteration avoids replacing a timer inside its own callback.
+        run.timer = timerName .. "_" .. remaining
+        timer.Create(run.timer, length, 1, function()
+            if not IsValid(npc) or not runs[run] then
+                finish()
+            elseif remaining > 0 then
+                remaining = remaining - 1
+                play()
             else
-                npc:PlayScene(npc:GetNWString("npcscene_path"))
-                npc:SetNWInt("npcscene_loop", npc:GetNWInt("npcscene_loop") - 1)
+                finish()
             end
         end)
-    -- Set the animation as finished
-    else
-        timer.Simple(lenght, function()
-            if not IsValid(npc) then return end
-            npc:SetNWBool("npcscene_active", false)
-        end)
+        return true
     end
+
+    return play()
 end
 
 -- Remove our modifications from the npc
@@ -412,16 +456,16 @@ function TOOL:LeftClick(tr)
 
         -- Reload the scenes by deleting the loops and reloading the NPCs
         if npc:GetNWBool("npcscene_active") and not multiple then
-            timer.Stop(tostring(npc) .. npc:GetNWInt("npcscene_index"))
+            NPCS:StopSceneTimers(npc)
             npc = NPCS:ReloadNPC(ply, npc)
         end
     end
 
     -- Get the scene configuration and set it
     local sceneData = {
-        active = false,
+        active = npc:GetNWBool("npcscene_active"),
         index  = npc:EntIndex(),
-        loop   = self:GetClientNumber("loop"),
+        loop   = math.floor(boundedNumber(self:GetClientNumber("loop"), 100)),
         path   = path,
         actor  = actor,
         key    = self:GetClientNumber("key"),
@@ -488,7 +532,7 @@ function TOOL:Reload(tr)
     if npc:GetNWInt("npcscene_index") > 0 then
         if SERVER then
             local keepActorName = GetConVar("npc_scene_remove_actor_name_on_reload"):GetBool()
-            timer.Stop(tostring(npc) .. npc:GetNWInt("npcscene_index"))
+            NPCS:StopSceneTimers(npc)
             newNpc = NPCS:ReloadNPC(ply, npc, keepActorName)
 
             if npc == newNpc then
