@@ -351,7 +351,7 @@ function NPCS:CreateNodes(parentNode, parentDir, sceneList)
         if istable(item) then
             local tab = { [k] = item }
             folders[k] = tab
-        else
+        elseif item:lower():match("%.vcd$") then
             table.insert(files, item)
         end
     end
@@ -368,7 +368,8 @@ function NPCS:CreateNodes(parentNode, parentDir, sceneList)
         end
     end
 
-    for _, fileName in pairs(files) do
+    table.sort(files)
+    for _, fileName in ipairs(files) do
         local node = parentNode:AddNode(fileName)
 
         node:SetIcon("icon16/page.png")
@@ -382,15 +383,15 @@ function NPCS:ScanDir(parentDir, foundScenes)
 
     if not foundScenes then foundScenes = {} end
 
-    local files, dirs = file.Find(parentDir .. "*", "MOD")
+    local files, dirs = file.Find(parentDir .. "*", "GAME")
 
-    for _, dirName in ipairs(dirs) do
+    for _, dirName in ipairs(dirs or {}) do
         foundScenes[dirName] = {}
         self:ScanDir(parentDir .. dirName .. "/", foundScenes[dirName])
     end
 
-    for _, fileName in ipairs(files) do
-        if string.GetExtensionFromFilename(fileName) == "vcd" then
+    for _, fileName in ipairs(files or {}) do
+        if fileName:lower():match("%.vcd$") then
             table.insert(foundScenes, fileName)
         end
     end 
@@ -398,20 +399,38 @@ function NPCS:ScanDir(parentDir, foundScenes)
     return foundScenes
 end
 
+-- Merge directory trees without overwriting numerically indexed scene names.
+function NPCS:MergeSceneLists(destination, source)
+    local files = {}
+    for _, name in ipairs(destination) do files[name] = true end
+
+    for name, item in pairs(source or {}) do
+        if istable(item) then
+            destination[name] = destination[name] or {}
+            self:MergeSceneLists(destination[name], item)
+        elseif not files[item] then
+            table.insert(destination, item)
+            files[item] = true
+        end
+    end
+
+    return destination
+end
+
 -- Build a scene list checking for mounted games and using our pre-made scene tables
 function NPCS:BuildPremandeSceneList()
     local premadeSceneList = {}
 
-    table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2"])
+    self:MergeSceneLists(premadeSceneList, self.premadeSceneList["Half-Life 2"])
 
     for _, game in ipairs(engine.GetGames()) do
         if game.mounted then
             if game.title == "Half-Life 2 & Episodes" then
-                table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 2"])
-                table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 1"])
-                table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Lost Coast"]) -- Not sure if it's included in the HL Anniversary update
+                self:MergeSceneLists(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 2"])
+                self:MergeSceneLists(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 1"])
+                self:MergeSceneLists(premadeSceneList, self.premadeSceneList["Half-Life 2: Lost Coast"]) -- Not sure if it's included in the HL Anniversary update
             elseif self.premadeSceneList[game.title] then
-                table.Merge(premadeSceneList, self.premadeSceneList[game.title])
+                self:MergeSceneLists(premadeSceneList, self.premadeSceneList[game.title])
             end
         end
     end
@@ -420,12 +439,11 @@ function NPCS:BuildPremandeSceneList()
 end
 
 -- Open the scenes list
-local initialized
 local sceneListPanel
 local function ListScenes()
     if SERVER then return end
 
-    if not initialized then
+    if not IsValid(sceneListPanel) then
         local width, height = 300, 700
         local padding = 35
 
@@ -445,11 +463,10 @@ local function ListScenes()
         local node = ctrl:AddNode("Scenes! (click one to select)")
             local premadeSceneList = NPCS:BuildPremandeSceneList()
             local foundSceneList = NPCS:ScanDir("scenes/")
-            table.Merge(foundSceneList, premadeSceneList)
+            NPCS:MergeSceneLists(foundSceneList, premadeSceneList)
             NPCS:CreateNodes(node, "", foundSceneList)
             node:SetExpanded(true)
 
-        initialized = true
     end
 
     sceneListPanel:SetVisible(true)
