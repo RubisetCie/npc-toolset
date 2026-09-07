@@ -16,6 +16,7 @@ TOOL.ClientConVar["scene"] = "scenes/npc/Gman/gman_intro"
 TOOL.ClientConVar["actor"] = "Alyx"
 TOOL.ClientConVar["remove_actor_name_on_reload"] = 0
 TOOL.ClientConVar["loop"] = 0
+TOOL.ClientConVar["loop_delay"] = 0
 TOOL.ClientConVar["key"] = 0
 TOOL.ClientConVar["start"] = 1
 TOOL.ClientConVar["multiple"] = 0
@@ -91,6 +92,7 @@ function NPCS:SetNWVars(npc, sceneData)
     if sceneData.active ~= nil then npc:SetNWBool("npcscene_active", sceneData.active) end
     if sceneData.index then npc:SetNWInt("npcscene_index", sceneData.index) end
     if sceneData.loop then npc:SetNWInt("npcscene_loop", sceneData.loop) end
+    if sceneData.loop_delay ~= nil then npc:SetNWFloat("npcscene_loop_delay", sceneData.loop_delay) end
     if sceneData.path then npc:SetNWString("npcscene_path", sceneData.path) end
     if sceneData.actor then npc:SetNWString("npcscene_actor", sceneData.actor) end
     if sceneData.key then npc:SetNWInt("npcscene_key", sceneData.key) end
@@ -152,6 +154,7 @@ function NPCS:PlayScene(ply, index)
     if npc:GetNWBool("npcscene_active") and not multiple then return false end
 
     local remaining = math.floor(boundedNumber(npc:GetNWInt("npcscene_loop"), 100))
+    local loopDelay = boundedNumber(npc:GetNWFloat("npcscene_loop_delay"), 60)
     self.runningScenes = self.runningScenes or {}
     local runs = self.runningScenes[npc] or {}
     self.runningScenes[npc] = runs
@@ -187,7 +190,8 @@ function NPCS:PlayScene(ply, index)
         npc:SetNWBool("npcscene_active", true)
         -- A different name per iteration avoids replacing a timer inside its own callback.
         run.timer = timerName .. "_" .. remaining
-        timer.Create(run.timer, length, 1, function()
+        local interval = length + (remaining > 0 and loopDelay or 0)
+        timer.Create(run.timer, interval, 1, function()
             if not IsValid(npc) or not runs[run] then
                 finish()
             elseif remaining > 0 then
@@ -466,6 +470,7 @@ function TOOL:LeftClick(tr)
         active = npc:GetNWBool("npcscene_active"),
         index  = npc:EntIndex(),
         loop   = math.floor(boundedNumber(self:GetClientNumber("loop"), 100)),
+        loop_delay = boundedNumber(self:GetClientNumber("loop_delay"), 60),
         path   = path,
         actor  = actor,
         key    = self:GetClientNumber("key"),
@@ -559,6 +564,8 @@ function TOOL.BuildCPanel(CPanel)
         CPanel:ControlHelp("\nApply a scene and open the console to see which actor names you need to set.")
     end
     CPanel:AddControl ("Slider"  , { Label = "Loop", Type = "int", Min = "0", Max = "100", Command = "npc_scene_loop"})
+    CPanel:NumSlider("Loop delay (seconds)", "npc_scene_loop_delay", 0, 60, 2)
+    CPanel:ControlHelp("Pause after each scene before repeating. Loop counts extra plays; 0 delay disables the pause.")
     CPanel:AddControl ("CheckBox", { Label = "Allow to apply scene multiple times", Command = "npc_scene_multiple" })
     CPanel:AddControl ("CheckBox", { Label = "Start On (When using a key)", Command = "npc_scene_start" })
     CPanel:AddControl ("CheckBox", { Label = "Render actor names", Command = "npc_scene_render" })
