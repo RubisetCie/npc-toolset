@@ -6,6 +6,7 @@ TOOL.ClientConVar["scene"] = "scenes/npc/Gman/gman_intro"
 TOOL.ClientConVar["actor"] = "Alyx"
 TOOL.ClientConVar["remove_actor_name_on_reload"] = 0
 TOOL.ClientConVar["loop"] = 0
+TOOL.ClientConVar["loop_delay"] = 0
 TOOL.ClientConVar["key"] = 0
 TOOL.ClientConVar["start"] = 1
 TOOL.ClientConVar["multiple"] = 0
@@ -46,8 +47,19 @@ if SERVER then
 	util.AddNetworkString("npc_scene_hook_key")
 	util.AddNetworkString("npc_scene_play")
 	util.AddNetworkString("npc_scene_render_actor")
-	net.Receive("npc_scene_play",function(_,ply)
-		NPCS:PlayScene(ply,net.ReadInt(16))
+	net.Receive("npc_scene_play", function(length, ply)
+		if length ~= 16 or not IsValid(ply) or not ply:IsPlayer() then return end
+
+		local index = net.ReadInt(16)
+		local npc = ents.GetByIndex(index)
+		local ct = CurTime()
+		if not IsValid(npc) or not npc:IsNPC() then return end
+		-- A client may only trigger the key binding it configured through the tool.
+		if npc.NPCSceneKeyOwner ~= ply or npc:GetNWInt("npcscene_key") <= 0 then return end
+		if (npc.NPCSceneNextKeyPlay or 0) > ct then return end
+
+		npc.NPCSceneNextKeyPlay = ct + 0.1
+		NPCS:PlayScene(ply, index)
 	end)
 end
 
@@ -60,100 +72,169 @@ if CLIENT then
 	end)
 end
 
+local function boundedNumber(value, maximum)
+	value = tonumber(value) or 0
+	if value ~= value then return 0 end -- Reject NaN from client convars.
+	return math.Clamp(value, 0, maximum)
+end
+
 -- Share the scene values between server and client
-function NPCS:SetNWVars(npc,sceneData)
-	if sceneData.active then npc:SetNWBool("npcscene_active",sceneData.active) end
-	if sceneData.index then npc:SetNWInt("npcscene_index",sceneData.index) end
-	if sceneData.loop then npc:SetNWInt("npcscene_loop",sceneData.loop) end
-	if sceneData.path then npc:SetNWString("npcscene_path",sceneData.path) end
-	if sceneData.actor then npc:SetNWString("npcscene_actor",sceneData.actor) end
-	if sceneData.key then npc:SetNWInt("npcscene_key",sceneData.key) end
+function NPCS:SetNWVars(npc, sceneData)
+	if sceneData.active ~= nil then npc:SetNWBool("npcscene_active", sceneData.active) end
+	if sceneData.index then npc:SetNWInt("npcscene_index", sceneData.index) end
+	if sceneData.loop then npc:SetNWInt("npcscene_loop", sceneData.loop) end
+	if sceneData.loop_delay ~= nil then npc:SetNWFloat("npcscene_loop_delay", sceneData.loop_delay) end
+	if sceneData.path then npc:SetNWString("npcscene_path", sceneData.path) end
+	if sceneData.actor then npc:SetNWString("npcscene_actor", sceneData.actor) end
+	if sceneData.key then npc:SetNWInt("npcscene_key", sceneData.key) end
 end
 
 -- Set a key association
 function NPCS:SetKey(index)
 	if SERVER then return end
 
-	local npc = ents.GetByIndex(index)
+	local npc
 	local hookName = "npc_scene"..index
+	local expires = RealTime() + 5
+	local wasDown = false
 
-	-- Don't recreate the hook for nothing
-	if hook.GetTable()["Tick"][hookName] then
-		return
-	end
+	-- Replace the previous binding rather than accumulating hooks. Networked entities
+	-- and their convars can arrive after this message, so resolve them on Tick.
+	hook.Add("Tick", hookName, function()
+		if not npc then
+			local candidate = ents.GetByIndex(index)
+			if not IsValid(candidate) or candidate:GetNWInt("npcscene_key") <= 0 then
+				if RealTime() >= expires then hook.Remove("Tick", hookName) end
+				return
+			end
+			npc = candidate
+		end
 
-	hook.Add("Tick",hookName,function()
-		-- NPC is gone
-		if not npc:IsValid() then
-			hook.Remove("Tick",hookName)
-		-- Play scene
-		elseif input.IsKeyDown(npc:GetNWInt("npcscene_key")) then
+		if not IsValid(npc) or npc:GetNWInt("npcscene_key") <= 0 then
+			hook.Remove("Tick", hookName)
+			return
+		end
+
+		local down = input.IsButtonDown(npc:GetNWInt("npcscene_key"))
+		local typing = gui.IsGameUIVisible() or IsValid(vgui.GetKeyboardFocus())
+		if down and not wasDown and not typing then
 			net.Start("npc_scene_play")
-			net.WriteInt(npc:EntIndex(), 16)
+				net.WriteInt(npc:EntIndex(), 16)
 			net.SendToServer()
 		end
+		wasDown = down
 	end)
 end
 
--- Play a scene
-function NPCS:PlayScene(ply,index)
+-- Cancel every playback sequence, including overlapping scenes.
+function NPCS:StopSceneTimers(npc)
 	if CLIENT then return end
 
-	local multiple = ply:GetInfo("npc_scene_multiple") == "1" and true or false
+	local runs = self.runningScenes and self.runningScenes[npc]
+	if not runs then return end
+
+	for run in pairs(runs) do
+		if run.timer then timer.Remove(run.timer) end
+		SafeRemoveEntity(run.scene)
+		runs[run] = nil
+	end
+
+	self.runningScenes[npc] = nil
+	if IsValid(npc) then npc:SetNWBool("npcscene_active", false) end
+end
+
+-- Play a scene. Each sequence keeps its own configuration and timers.
+function NPCS:PlayScene(ply, index)
+	if CLIENT or not IsValid(ply) or not ply:IsPlayer() then return false end
+
 	local npc = ents.GetByIndex(index)
+	if not IsValid(npc) or not npc:IsNPC() then return false end
 
-	-- When an animation is running only start more animations if the "multiple" checkbox is checked
-	if npc:GetNWBool("npcscene_active") and not multiple then return end
-	npc:SetNWBool("npcscene_active",true)
+	local path = npc:GetNWString("npcscene_path")
+	if path == "" then return false end
 
-	-- Play the scene and get its lenght
-	local lenght = npc:PlayScene(npc:GetNWString("npcscene_path")) 
-	if not lenght then return end
+	local multiple = ply:GetInfo("npc_scene_multiple") == "1"
+	if npc:GetNWBool("npcscene_active") and not multiple then return false end
 
-	-- Set the next loops
-	if npc:GetNWInt("npcscene_loop") > 0 then
-		local index = tostring(npc)..npc:EntIndex()
+	local remaining = math.floor(boundedNumber(npc:GetNWInt("npcscene_loop"), 100))
+	local loopDelay = boundedNumber(npc:GetNWFloat("npcscene_loop_delay"), 60)
+	self.runningScenes = self.runningScenes or {}
+	local runs = self.runningScenes[npc] or {}
+	self.runningScenes[npc] = runs
+	self.nextSceneID = (self.nextSceneID or 0) + 1
+	local timerName = "npc_scene_" .. npc:EntIndex() .. "_" .. self.nextSceneID
+	local run = {}
+	runs[run] = true
 
-		timer.Create(index,lenght,npc:GetNWInt("npcscene_loop"), function()
-			-- Invalid ent, stop the loop
-			if not IsValid(npc) then
-				timer.Stop(index)
-			-- Last loop
-			elseif npc:GetNWInt("npcscene_loop") == 0 then
-				npc:SetNWBool("npcscene_active", false)
-				timer.Stop(index)
-			-- An execution in the sequence, there are more to do
+	npc:CallOnRemove("npc_scene_timers", function(ent)
+		self:StopSceneTimers(ent)
+	end)
+
+	local function finish()
+		if run.timer then timer.Remove(run.timer) end
+		if self.runningScenes[npc] ~= runs then return end
+		runs[run] = nil
+		local active = next(runs) ~= nil
+		if not active then self.runningScenes[npc] = nil end
+		if IsValid(npc) then npc:SetNWBool("npcscene_active", active) end
+	end
+
+	local function play()
+		if not IsValid(npc) or not runs[run] then finish() return false end
+
+		local length, scene = npc:PlayScene(path)
+		run.scene = scene
+		if not isnumber(length) or length ~= length or length <= 0 or length == math.huge then
+			SafeRemoveEntity(scene)
+			finish()
+			return false
+		end
+
+		npc:SetNWBool("npcscene_active", true)
+		-- A different name per iteration avoids replacing a timer inside its own callback.
+		run.timer = timerName .. "_" .. remaining
+		local interval = length + (remaining > 0 and loopDelay or 0)
+		timer.Create(run.timer, interval, 1, function()
+			if not IsValid(npc) or not runs[run] then
+				finish()
+			elseif remaining > 0 then
+				remaining = remaining - 1
+				play()
 			else
-				npc:PlayScene(npc:GetNWString("npcscene_path"))
-				npc:SetNWInt("npcscene_loop",npc:GetNWInt("npcscene_loop")-1)
+				finish()
 			end
 		end)
-	-- Set the animation as finished
-	else
-		timer.Simple(lenght,function()
-			if not IsValid(npc) then return end
-			npc:SetNWBool("npcscene_active",false)
-		end)
+		return true
 	end
+
+	return play()
 end
 
 -- Remove our modifications from the npc
 function NPCS:ReloadNPC(ply,npc,removeActorName)
 	if CLIENT then return end
 
+	if not IsValid(ply) or not IsValid(npc) or npc:IsPlayer() or npc:IsWorld() then return npc end
+
 	local scenePath = npc:GetNWString("npcscene_path")
-	local actorName = not removeActorName and npc:GetNWString("npcscene_actor")
+	local actorName = npc:GetNWString("npcscene_actor")
 
-	if removeActorName and actorName != "" then
-	elseif scenePath == "" then
-		return npc
-	end
+	if scenePath == "" and (not removeActorName or actorName == "") then return npc end
 
-	local dup = {}
+	-- Do not delete or interrupt the original if duplication fails.
+	local data = duplicator.CopyEntTable(npc)
+	if not istable(data) then return npc end
+	local newNpc = duplicator.CreateEntityFromTable(ply, data)
+	if not IsValid(newNpc) then return npc end
 
-	-- Change the entity
-	local newNpc = duplicator.CreateEntityFromTable(ply,duplicator.CopyEntTable(npc))
+	self:StopSceneTimers(npc)
 	SafeRemoveEntity(npc)
+	self:SetNWVars(newNpc, {
+		active = false, index = 0, loop = 0, loop_delay = 0, path = "", actor = "", key = 0
+	})
+	newNpc.NPCSceneKeyOwner = nil
+	newNpc.NPCSceneNextKeyPlay = nil
+	if removeActorName then newNpc:SetName("") end
 
 	-- Add undo
 	undo.Create("NPC")
@@ -162,7 +243,7 @@ function NPCS:ReloadNPC(ply,npc,removeActorName)
 	undo.Finish()
 
 	-- Reapply the name
-	if actorName then
+	if not removeActorName and actorName ~= "" then
 		local sceneData = {
 			index = newNpc:EntIndex(),
 			actor = actorName
@@ -173,7 +254,7 @@ function NPCS:ReloadNPC(ply,npc,removeActorName)
 		self:SetNWVars(newNpc, sceneData)
 
 		timer.Simple(0.5, function()
-			if not IsValid(ply) then return end
+			if not IsValid(ply) or not IsValid(newNpc) then return end
 
 			net.Start("npc_scene_render_actor")
 				net.WriteInt(sceneData.index, 16)
@@ -191,95 +272,149 @@ function NPCS:RenderActorName(index)
 	if not npc then return end
 	local hookName = "NPCScene_ActorName"..tostring(npc)..math.random(1,999)
 
-	hook.Add("HUDPaint",hookName,function()
-		if not npc:IsValid() then return hook.Remove("HUDPaint",hookName) end
-		if GetConVar("npc_scene_render"):GetBool() then
-			local actorName = npc:GetNWString("npcscene_actor")
-			if not actorName then return end
+	local npc
+	local expires = RealTime() + 5
+	local hookName = "NPCScene_ActorName" .. index
 
+	hook.Add("HUDPaint", hookName, function()
+		if not npc then
+			local candidate = ents.GetByIndex(index)
+			if not IsValid(candidate) then
+				if RealTime() >= expires then hook.Remove("HUDPaint", hookName) end
+				return
+			end
+			npc = candidate
+		end
+		if not IsValid(npc) then return hook.Remove("HUDPaint", hookName) end
+
+		local renderNames = GetConVar("npc_scene_render")
+		if renderNames and renderNames:GetBool() and IsValid(LocalPlayer()) then
+			-- Actor name
+			local actorName = npc:GetNWString("npcscene_actor")
+
+			if actorName == "" then return end
+
+			-- Distance
 			local distance = LocalPlayer():GetPos():Distance(npc:GetPos())
+
 			if distance > 300 then return end
 
 			local head = npc:LookupBone("ValveBiped.Bip01_Head1")
-			local up = Vector(0,0,17 * distance/300)
+			local up = Vector(0, 0, 17 * distance/300)
+			local drawposscreen
 
 			-- NPCs
 			if head then
-				local headpos, headang = npc:GetBonePosition(head)
-				headpos = headpos+up
-				drawposscreen = (headpos+Vector(0,0,10)):ToScreen()
+				local headpos = npc:GetBonePosition(head)
+				if not headpos then return end
+				headpos = headpos + up
+				drawposscreen = (headpos + Vector(0, 0, 10)):ToScreen()
 			-- Props
 			else
-				local mins,maxs = npc:GetModelBounds()
-				local pos = npc:GetPos()+Vector(0,0,maxs.z+7)
-				local min,max = npc:WorldSpaceAABB()
-				local drawpos = Vector(pos.x,pos.y, max.z)+up
+				local mins, maxs = npc:GetModelBounds()
+				local pos = npc:GetPos() + Vector(0, 0, maxs.z + 7)
+				local min, max = npc:WorldSpaceAABB()
+				local drawpos = Vector(pos.x, pos.y, max.z) + up
 				drawposscreen = drawpos:ToScreen()
 			end
-			draw.DrawText(actorName,"NPCS_TargetID",drawposscreen.x,drawposscreen.y,color_white,TEXT_ALIGN_CENTER)
+
+			-- Draw
+			if not drawposscreen.visible then return end
+			draw.DrawText(actorName, "NPCS_TargetID", drawposscreen.x, drawposscreen.y, color_white, TEXT_ALIGN_CENTER)
 		end
 	end)
 end
 
 -- Scan for .vcds and folders in a folder
-function NPCS:CreateNodes(parentNode,parentDir,sceneList)
+function NPCS:CreateNodes(parentNode, parentDir, sceneList)
 	if SERVER then return end
-	local folders,files = {},{}
-	for k,item in pairs(sceneList) do
+
+	local folders, files = {}, {}
+
+	for k, item in pairs(sceneList) do
 		if istable(item) then
-			local tab = {[k] = item}
+			local tab = { [k] = item }
 			folders[k] = tab
-		else
-			table.insert(files,item)
+		elseif item:lower():match("%.vcd$") then
+			table.insert(files, item)
 		end
 	end
-	for _,item in SortedPairs(folders) do
-		for folderName,folder in pairs(item) do
+
+	for _, item in SortedPairs(folders) do
+		for folderName, folder in pairs(item) do
 			local node = parentNode:AddNode(folderName)
+
 			node.DoClick = function()
 				node:SetExpanded(not node:GetExpanded())
 			end
-			self:CreateNodes(node,parentDir..folderName.."/",folder)
+
+			self:CreateNodes(node, parentDir .. folderName .. "/", folder)
 		end
 	end
-	for _,fileName in pairs(files) do
+
+	table.sort(files)
+	for _, fileName in ipairs(files) do
 		local node = parentNode:AddNode(fileName)
+
 		node:SetIcon("icon16/page.png")
-		node.DoClick = function() RunConsoleCommand("npc_scene_scene","scenes/"..parentDir..fileName) end
+		node.DoClick = function() RunConsoleCommand("npc_scene_scene", "scenes/" .. parentDir .. fileName) end
 	end
 end
 
 -- Scan for .vcds and folders in a folder
-function NPCS:ScanDir(parentDir,foundScenes)
+function NPCS:ScanDir(parentDir, foundScenes)
 	if SERVER then return end
+
 	if not foundScenes then foundScenes = {} end
-	local files,dirs = file.Find(parentDir.."*","MOD")
-	for _,dirName in ipairs(dirs) do
+
+	local files, dirs = file.Find(parentDir .. "*", "GAME")
+
+	for _, dirName in ipairs(dirs or {}) do
 		foundScenes[dirName] = {}
-		self:ScanDir(parentDir..dirName.."/",foundScenes[dirName])
+		self:ScanDir(parentDir .. dirName .. "/", foundScenes[dirName])
 	end
-	for _,fileName in ipairs(files) do
-		if string.GetExtensionFromFilename(fileName) == "vcd" then
-			table.insert(foundScenes,fileName)
+
+	for _, fileName in ipairs(files or {}) do
+		if fileName:lower():match("%.vcd$") then
+			table.insert(foundScenes, fileName)
 		end
 	end 
+
 	return foundScenes
+end
+
+-- Merge directory trees without overwriting numerically indexed scene names.
+function NPCS:MergeSceneLists(destination, source)
+	local files = {}
+	for _, name in ipairs(destination) do files[name] = true end
+
+	for name, item in pairs(source or {}) do
+		if istable(item) then
+			destination[name] = destination[name] or {}
+			self:MergeSceneLists(destination[name], item)
+		elseif not files[item] then
+			table.insert(destination, item)
+			files[item] = true
+		end
+	end
+
+	return destination
 end
 
 -- Build a scene list checking for mounted games and using our pre-made scene tables
 function NPCS:BuildPremandeSceneList()
 	local premadeSceneList = {}
 
-	table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2"])
+	self:MergeSceneLists(premadeSceneList, self.premadeSceneList["Half-Life 2"])
 
 	for _, game in ipairs(engine.GetGames()) do
 		if game.mounted then
 			if game.title == "Half-Life 2 & Episodes" then
-				table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 2"])
-				table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 1"])
-				table.Merge(premadeSceneList, self.premadeSceneList["Half-Life 2: Lost Coast"]) -- Not sure if it's included in the HL Anniversary update
+				self:MergeSceneLists(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 2"])
+				self:MergeSceneLists(premadeSceneList, self.premadeSceneList["Half-Life 2: Episode 1"])
+				self:MergeSceneLists(premadeSceneList, self.premadeSceneList["Half-Life 2: Lost Coast"]) -- Not sure if it's included in the HL Anniversary update
 			elseif self.premadeSceneList[game.title] then
-				table.Merge(premadeSceneList, self.premadeSceneList[game.title])
+				self:MergeSceneLists(premadeSceneList, self.premadeSceneList[game.title])
 			end
 		end
 	end
@@ -288,11 +423,10 @@ function NPCS:BuildPremandeSceneList()
 end
 
 -- Open the scenes list
-local initialized
 local sceneListPanel
 local function ListScenes()
 	if SERVER then return end
-	if not initialized then
+	if not IsValid(sceneListPanel) then
 		local width,height = 300,700
 		local padding = 35
 
@@ -312,11 +446,11 @@ local function ListScenes()
 		local node = ctrl:AddNode("Scenes (click one to select)")
 		local premadeSceneList = NPCS:BuildPremandeSceneList()
 		local foundSceneList = NPCS:ScanDir("scenes/")
-		table.Merge(foundSceneList,premadeSceneList)
+		NPCS:MergeSceneLists(foundSceneList, premadeSceneList)
 		NPCS:CreateNodes(node,"",foundSceneList)
 		node:SetExpanded(true)
 
-		initialized = true
+			node:SetExpanded(true)
 	end
 
 	sceneListPanel:SetVisible(true)
@@ -329,7 +463,9 @@ end
 
 local function toolGunChecks(tr,anyEnt)
 	-- Check if we're modifying a NPC
-	if not (tr.Hit and tr.Entity and tr.Entity:IsValid() and (anyEnt or tr.Entity:IsNPC())) then
+	if not (tr.Hit and not tr.HitWorld and IsValid(tr.Entity)
+		and not tr.Entity:IsPlayer() and not tr.Entity:IsWorld()
+		and (anyEnt or tr.Entity:IsNPC())) then
 		return false
 	end
 
@@ -343,51 +479,50 @@ function TOOL:LeftClick(tr)
 
 	local ply = self:GetOwner()
 	local npc = tr.Entity
-	local path  = string.gsub(self:GetClientInfo("scene"), ".vcd", "")
+	local path = string.gsub(string.Trim(self:GetClientInfo("scene")), "%.[vV][cC][dD]$", "")
+	if path == "" then return false end
 	local actor
 	local multiple = self:GetClientNumber("multiple") == 1 and true or false
 
 	-- Checks if there's a scene applied
 	if npc:GetNWInt("npcscene_index") > 0 then
-		-- Apply the scene on top scene if it's configured to do so
-		if multiple and npc:GetNWString("npcscene_path") == path then
-			NPCS:PlayScene(ply,npc:GetNWInt("npcscene_index"))
-			return true
-		end
-		-- Get the actor name if there's one
-		if npc:GetNWString("npcscene_actor") ~= "" then
-			actor = npc:GetNWString("npcscene_actor")
-		end
+	NPCS:SetNWVars(npc, sceneData)
+
 		-- Reload the scenes by deleting the loops and reloading the NPCs
 		if npc:GetNWBool("npcscene_active") and not multiple then
-			timer.Stop(tostring(npc)..npc:GetNWInt("npcscene_index"))
-			npc = NPCS:ReloadNPC(ply,npc)
+			local newNpc = NPCS:ReloadNPC(ply, npc)
+			if not IsValid(newNpc) or newNpc == npc then return false end
+			npc = newNpc
 		end
 	end
 
 	-- Get the scene configuration and set it
 	local sceneData = {
-		active = false,
-		index  = npc:EntIndex(),
-		loop   = self:GetClientNumber("loop"),
-		path   = path,
-		actor  = actor,
-		key    = self:GetClientNumber("key"),
-		start  = self:GetClientNumber("start") == 1 and true or false,
+		active		= npc:GetNWBool("npcscene_active"),
+		index		= npc:EntIndex(),
+		loop		= math.floor(boundedNumber(self:GetClientNumber("loop"), 100)),
+		loop_delay	= boundedNumber(self:GetClientNumber("loop_delay"), 60),
+		path		= path,
+		actor		= actor,
+		key			= self:GetClientNumber("key"),
+		start		= self:GetClientNumber("start") == 1 and true or false,
 	}
 
 	NPCS:SetNWVars(npc, sceneData)
 
+	npc.NPCSceneKeyOwner = sceneData.key ~= 0 and ply or nil
+	npc.NPCSceneNextKeyPlay = nil
+
 	-- Prepare the scene to be played by key
 	if sceneData.key != 0 then
 		net.Start("npc_scene_hook_key")
-		net.WriteInt(sceneData.index,16)
+			net.WriteInt(sceneData.index, 16)
 		net.Send(ply)
 	end
 	
 	-- Play the scene
 	if sceneData.start or sceneData.key == 0 then
-		NPCS:PlayScene(ply,sceneData.index)
+		return NPCS:PlayScene(ply, sceneData.index)
 	end
 
 	return true
@@ -400,8 +535,8 @@ function TOOL:RightClick(tr)
 
 	local ply = self:GetOwner()    
 	local npc = tr.Entity
-    local oldName = npc:GetNWString("npcscene_actor")
-    local newName = self:GetClientInfo("actor")
+	local oldName = npc:GetNWString("npcscene_actor")
+	local newName = self:GetClientInfo("actor")
 
 	if oldName == newName then
 		return false
@@ -409,7 +544,7 @@ function TOOL:RightClick(tr)
 
 	-- Add the name to the entity
 	local sceneData = {
-		index = npc:GetNWInt("npcscene_index") == 0 and npc:EntIndex() or nil,
+		index = npc:EntIndex(),
 		actor = newName
 	}
 
@@ -419,6 +554,11 @@ function TOOL:RightClick(tr)
 	-- Render the name on the client
 	net.Start("npc_scene_render_actor")
 	net.WriteInt(sceneData.index or npc:GetNWInt("npcscene_index"),16)
+	net.Send(ply)
+
+	-- Render the name on the client
+	net.Start("npc_scene_render_actor")
+		net.WriteInt(sceneData.index, 16)
 	net.Send(ply)
 
 	return true
@@ -434,9 +574,8 @@ function TOOL:Reload(tr)
 	-- Stop any loops and reload the NPC
 	if npc:GetNWInt("npcscene_index") > 0 then
 		if SERVER then
-			local keepActorName = GetConVar("npc_scene_remove_actor_name_on_reload"):GetBool()
-			timer.Stop(tostring(npc) .. npc:GetNWInt("npcscene_index"))
-			newNpc = NPCS:ReloadNPC(ply, npc, keepActorName)
+			local removeActorName = self:GetClientNumber("remove_actor_name_on_reload") == 1
+			local newNpc = NPCS:ReloadNPC(ply, npc, removeActorName)
 
 			if npc == newNpc then
 				return false
@@ -461,6 +600,8 @@ function TOOL.BuildCPanel(CPanel)
 		CPanel:ControlHelp("Apply a scene and open the console to see which actor names you need to set.")
 	end
 	CPanel:NumSlider("Loop","npc_scene_loop",0,100,0)
+	CPanel:NumSlider("Loop delay (seconds)", "npc_scene_loop_delay", 0, 60, 2)
+	CPanel:ControlHelp("Pause after each scene before repeating. Loop counts extra plays; 0 delay disables the pause.")
 	CPanel:CheckBox("Allow Multiple Times","npc_scene_multiple")
 	CPanel:CheckBox("Start On (When using a key)","npc_scene_start")
 	CPanel:CheckBox("Render Actor Names","npc_scene_render")
